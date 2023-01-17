@@ -42,20 +42,6 @@ async def get_keyboard(uid):
     else:
         return keyboards.user_keyboard
 
-async def get_info_from_inline(callback):
-    info = callback.message.reply_markup.inline_keyboard
-    for elem in info:
-        if len(elem)==3:
-            return elem[1]['text'].split(' ')
-    return []
-
-
-async def get_current_task_number(callback):
-    info = callback.message.reply_markup.inline_keyboard
-    if len(info[-1]) == 1:
-        return int(info[-1][0]['callback_data'].replace('btn_checkout_', ''))
-    return 0
-
 
 async def send_long(text, message, new_markup=""):
     if text and len(text) > 4096:
@@ -64,13 +50,41 @@ async def send_long(text, message, new_markup=""):
     else:
         await message.answer(text, disable_web_page_preview=True, reply_markup=new_markup )
 
-
 async def print_editing_task():
     s = f"<b>Название</b>:\n {new_task_dict['header']}\n"\
         f"<b>Описание</b>:\n {new_task_dict['body']}\n"\
         f"<b>Ответственные</b>:\n {', '.join(new_task_dict['assignees'])}\n"\
         f"<b>Дедлайн</b>: {new_task_dict['deadline']}"
     return s
+
+@dp.message_handler(state = '*', commands=['help'])
+async def print_help(message: types.Message):
+    helpmes = '<u><b>Вот, что я умею</b></u>:\n\n'\
+        '&#128311 Хранить список наших задач\n'\
+        '&#128311 Отмечать задачи, как выполненные\n'\
+        '&#128311 Уведомлять о новых задачах\n\n'\
+        '<u><b>Список комманд:</b></u>\n\n'\
+        '&#128311 <b>Мои задачи</b> - вывести список задач,'\
+        ' которые относятся только ко мне\n'\
+        '&#128311 <b>Все задачи</b> - вывести список всех задач\n'\
+        '&#128311 <b>Общие задачи</b> - вывести задачи, которые относятся ко всем\n'\
+        '&#128311 <b>Чужие задачи</b> - посмотреть задачи отдельного человека\n'\
+        '&#128311 <b>N+</b> - отметить задачу с номером N как сделанную\n'\
+        '<b>Внимание: нумерация как в списке "Мои задачи"\n\n</b>'
+
+    adminmes = '<u><b>Функции админа</b></u>\n\n&#128311 <b>Ещё</b> - вывести меню админа\n'\
+            '&#128311 <b>Создать задачи</b> - добавить новые задачи. Каждая задача должна'\
+            'начинаться с новой строки (на компьютере - ctrl+Enter)\n'\
+            '&#128311 <b>Снять задачи</b> - убрать старые задачи из выдачи. убранные задачи'\
+            'останутся в базе данных, но не будут видны в боте\n'\
+            'Чтобы убрать все задачи - отправь "*"\n'\
+            '&#128311 <b>Редактировать права</b> - добавить или убрать админов'
+    await bot.send_sticker(chat_id = message.from_user.id, sticker = stickers.help_sticker)
+
+    if (commands.is_admin(message.from_user.id)):
+        await message.answer(helpmes+adminmes)
+    else:
+        await message.answer(helpmes)
 
 
 @dp.message_handler(state = '*', commands=['start'])
@@ -86,40 +100,23 @@ async def send_welcome(message: types.Message):
     await message.answer(s, reply_markup=key['main'])
 
 
-@dp.callback_query_handler(Text(startswith='btn_checkout'), state='*')
-async def check_done(callback: types.CallbackQuery):
-    usr = ''
-    chat_id = callback.from_user.id
-    message_id = callback.message.message_id
-    info = await get_info_from_inline(callback)
-    if len(info)>1:
-        user = info[1][1:-1]
-    offset = int(info[0])
-    key = keyboards.form_tasks_keyboard(offset, usr)
-    tnum = callback.data.replace('btn_checkout_', '')
-    commands.check_done(tnum)
-    task = commands.get_task_by_tid(tnum)
-    await bot.edit_message_text(task, chat_id, message_id, reply_markup = key)
-    
-
-
 @dp.callback_query_handler(Text(startswith='task_btn_shift'), state='*')
 async def show_task_shift(callback: types.CallbackQuery):
     chat_id = callback.from_user.id
-    message_id = callback.message.message_id
     usr = ''
-    check_tnum = await get_current_task_number(callback)
-    info = await get_info_from_inline(callback)
-    if len(info)>1:
-        user = info[1][1:-1]
+    message_id = callback.message.message_id
+    info= callback.message.reply_markup.inline_keyboard[-2][-2]['text'].split(' ')
+    if ' ' in info:
+        usr = info[1].replace('(', '').replace(')', '')
     if 'forward' in callback.data:
         query = int(callback.data.replace('task_btn_shift_forward_', ''))
-        key = keyboards.form_tasks_keyboard(query+1, usr, check_tnum)
+        key = keyboards.form_tasks_keyboard(query+1, usr)
+        logging.info(callback)
     else:
         query = int(callback.data.replace('task_btn_shift_back_', ''))
-        key = keyboards.form_tasks_keyboard(query-1, usr, check_tnum)
+        key = keyboards.form_tasks_keyboard(query-1, usr)
     try:
-        await bot.edit_message_reply_markup(chat_id, message_id, reply_markup = key)
+        await bot.edit_message_text(callback.message.text, chat_id, message_id, reply_markup = key)
     except MessageNotModified:
         pass
 
@@ -129,13 +126,16 @@ async def show_task(callback: types.CallbackQuery):
     user = ''
     chat_id = callback.from_user.id
     message_id = callback.message.message_id
-    info = await get_info_from_inline(callback)
+    info= callback.message.reply_markup.inline_keyboard[-2][-2]['text'].split(' ')
+    logging.info(info)
     if len(info)>1:
         user = info[1][1:-1]
+        logging.info(user)
     offset = int(info[0])
     query = callback.data.replace('task_btn_show_', '')
     task = commands.get_task_by_tid(query)
     if commands.is_owner(callback.from_user.id, query):
+        logging.info(query)
         key = keyboards.form_tasks_keyboard(offset, user, query)
     else:
         key = keyboards.form_tasks_keyboard(offset, user)
@@ -195,7 +195,9 @@ async def new_task_deadline(message: types.Message):
 
 @dp.message_handler(state = Form.add_task_assignees)
 async def new_task_assignees(message: types.Message):
+    logging.info(message.text)
     new_task_dict['assignees'] = re.split('\s*,*\s+', message.text) 
+    logging.info(new_task_dict['assignees'])
     t = await print_editing_task()
     await message.answer(f'Задача обновлена\n{t}',
                                 reply_markup=keyboards.AddTasksKb)
@@ -203,6 +205,7 @@ async def new_task_assignees(message: types.Message):
 
 @dp.callback_query_handler(Text(startswith='add_task'), state='*')
 async def new_task_buttons(callback: types.CallbackQuery):
+    logging.info(callback)
     chat_id = callback.from_user.id
     mes_id = callback.message.message_id
     query = callback.data.replace('add_task_', '')
@@ -220,11 +223,12 @@ async def new_task_buttons(callback: types.CallbackQuery):
         await Form.add_task_deadline.set()
     if query == 'back':
         key = await get_keyboard(callback.from_user.id)
-        await bot.edit_message_text("Задача отменена", chat_id, mes_id, reply_markup=None)
+        await bot.edit_message_text("Задача отменена", chat_id, mes_id, reply_markup=key['more'])
         await Form.admin.set()
     if query == 'save':
         commands.insert_new_task(new_task_dict, callback.from_user.username)
         key = await get_keyboard(callback.from_user.id)
+        logging.info(key)
         await Form.admin.set()
         await bot.send_message(chat_id,"Задача сохранена.", reply_markup=key['more'])
 
@@ -284,6 +288,7 @@ async def others_tasks_button(message: types.Message):
 @dp.message_handler(state=Form.usr_list_perm)
 async def change_admins(message: types.Message):
     mes = message.text.split(' ')
+    logging.info(mes)
     usernames = commands.list_usernames()
     if(mes[0] in usernames):
         if len(mes) == 2:
@@ -297,6 +302,7 @@ async def change_admins(message: types.Message):
 
     elif (message.text == 'Назад'):
         key = await get_keyboard(message.from_user.id)
+        logging.info(key)
         if commands.is_admin(message.from_user.id):
             await Form.admin.set()
             await message.answer("Назад", reply_markup=key['more'])

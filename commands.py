@@ -7,37 +7,34 @@ from datetime import datetime
 
 db = Db()
 
-
-def list_common_tasks():
-    cmds = []
-    l = db.fetch_tasks('common')
-    result = 'Общие задачи:\n'
-    for i, elem in enumerate(l, 1):
-        result += f"{i}. {elem['mes']}" + '\n'
-    result+= '\n'
-    if not result:
-        return "Список задач пуст"
-    return result
-
-
-def list_tasks(user_id = ""):
-    if not user_id:
-        l = db.fetch_tasks()
+def get_task_by_tid(tid):
+    status = ''
+    task = db.get_task_by_tid(tid)
+    if not task[6]:
+        status = 'В работе'
     else:
-        l = db.fetch_tasks(user_id)
-    result = ''
-    for i, elem in enumerate(l, 1):
-        result += f"{i}. {elem['mes'] }"
-        if not elem['common']:
-            if elem['done']:
-                result += '\u2705'
-            else:
-                result += '\u25FB'
-        result += '\n'
+        status = 'Выполнено'
+    s = f"<b>Задача M{task[0]}:</b> {task[1]}\n\n"\
+    f"<b>Статус:</b> {status}\n\n"\
+    f"<b>Описание:</b> {task[2]}\n\n"\
+    f"<b>Ответственные:</b> {task[8]}\n\n"\
+    f"<b>Дедлайн:</b> {task[5]}\n\n"\
+    f"<b>Создатель:</b> {task[4]}\n"\
+    f"<b>Дата создания:</b> {task[3]}\n"
+    return s
 
-    if not result:
-        return None
-    return result
+
+
+def list_headers(uid="", limit=0, offset=0):
+    return db.fetch_headers(uid, limit, offset)
+
+
+def get_table_size(table, user):
+    if user and user == 'общее':
+        return db.count_common_tasks(user)
+    elif user:
+        return db.count_usr_tasks(user)
+    return db.get_table_size(table)
 
 
 def get_ids():
@@ -65,56 +62,49 @@ def _insert_task_rows(nick_list, cmd):
             db.insert("logger_table", log_row)
 
 
-def add_task(cmds):
-    cmds = cmds.replace('/new_task ', '')
-    cmds_list = cmds.split('\n')
-    total_nicks=[]
-    nicks = db.list_nicks()
-    for cmd in cmds_list:
-        logging.info(cmd)
-        cmd = re.sub("\d\di[\*|)].\s", "", cmd, count=1)
-        logging.info(cmd)
-        nick_list = []
-        for nick in nicks:
-            if nick.lower() in cmd.lower():
-                nick_list.append(nick)
-        _insert_task_rows(nick_list, cmd)
-        total_nicks.extend(nick_list)
-    return len(cmds_list)
+def make_lowerscore_remove_at(l):
+    tmp = []
+    for it in l:
+        tmp.append(it.replace('@', '').lower())
+    return tmp
 
 
-def check_done(uid, task_num):
-    task_id = db.get_tid_from_tuid(uid, task_num)
-    if task_id and not db.is_done(task_id):
-        db.set_done(task_id)
-        return task_id
+def insert_new_task(task_dict, creator):
+    log_row = {'tg_id': 0, 'task_id': 0, 'task_usr_id': 0}
+    task_dict['creator'] = f'@{creator}'
+    task_dict['created_datetime'] = datetime.now()
+    assignees = task_dict['assignees']
+    username_list = db.list_nicks()
+    username_list = make_lowerscore_remove_at(username_list)    
+    task_dict['assignees'] = ', '.join(task_dict['assignees'])
+    if not assignees:
+        task_dict['common'] = True
+        db.insert("tasks", task_dict)
     else:
-        return 0
+        task_id = db.insert("tasks", task_dict)
+        for nick in task_dict['assignees'].split(', '):
+            if nick.lower().replace('@', '') in username_list:
+                tg_id = db.find_id_by_nick(nick)
+                log_row['tg_id'] = tg_id
+                log_row['task_id'] = task_id
+                db.insert("logger_table", log_row)
 
-def remove_task(uid, task_nums):
-    task_nums = task_nums.split('\n')
-    logging.info(f'removing {task_nums}')
-    uids_dict = db.make_old(task_nums)
-    if uids_dict == -1:
-        return 0
-    elif uids_dict:
-        state = db.increase_old_counter(uids_dict)
-        if state == -1:
-            return 0
-    return 1
+def delete_task(tid):
+    db.delete_tid_from_logger(tid)
+    db.delete_tid_from_tasks(tid)
+
+
+def check_done(tid):
+    db.set_done(tid)
+    return tid
+
+
+def is_done(tid):
+    return db.is_done(tid)
+
 
 def get_id_from_usrname(username):
     return db.find_id_by_nick(username)
-
-def remove_all():
-    uids_dict = db.make_evrth_old()
-    if uids_dict == -1:
-        return 0
-    elif uids_dict:
-        state = db.increase_old_counter(uids_dict)
-        if state == -1:
-            return 0
-    return 1
 
 
 def make_admin(username, up_or_down):
@@ -132,11 +122,11 @@ def is_admin(uid):
 def list_admins():
     return db.list_admins()
 
-def get_task(tuid):
-    return db.get_task(tuid)
 
 def report_trespasser(values):
     d = dict(values)
     d['time'] = datetime.now()
     db.register_unauthorized(d)
 
+def is_owner(uid, tid):
+    return db.is_owner(uid, tid)

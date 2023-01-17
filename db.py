@@ -30,28 +30,38 @@ class Db():
             self.conn.commit()
 
 
-    def fetch_tasks(self, uid='') -> list:
+    def get_table_size(self, table):
+        self.cursor.execute(f'select count(1) from {table}')
+        return self.cursor.fetchall()[0][0]
+
+
+    def fetch_headers(self, uid='', limit=0, offset=0) -> list:
         if not uid:
-            cmd = query.fetch_new_all
+            cmd = query.fetch_all(limit, offset)
         elif uid == 'common':
-            cmd = query.fetch_new_common
+            cmd = query.fetch_common(limit, offset)
         else:
-            cmd = query.fetch_new_by_uid(uid)
+            cmd = query.fetch_by_uid(self.find_id_by_nick(uid), limit, offset)
         self.cursor.execute(cmd)
         rows = self.cursor.fetchall()
         result = []
         for row in rows:
             ans ={
-                'common': row[2],
-                'done': row[1],
-                'mes': row[0]
+                'task_id': row[0],
+                'header': row[1],
+                'done': row[2],
             }
             result.append(ans)
         return result
 
 
+    def get_task_by_tid(self, tid):
+        self.cursor.execute(query.get_task_by_tid(tid))
+        res = self.cursor.fetchone()
+        return res
+
+
     def insert(self, table: str, column_values: dict):
-        logging.info(column_values)
         columns = ', '.join(column_values.keys())
         values = tuple(column_values.values())
         placeholders =','.join('?'*len(column_values.keys()))
@@ -62,7 +72,7 @@ class Db():
 
 
     def find_id_by_nick(self, nickname):
-        self.cursor.execute(query.get_id_by_nick(nickname))
+        self.cursor.execute(query.get_id_by_nick(nickname.replace("@", '').lower()))
         return self.cursor.fetchone()[0]
 
 
@@ -75,7 +85,6 @@ class Db():
         result = []
         for elem in self.cursor.fetchall():
             result.append(elem[0])
-        logging.info(result)
         return result
 
 
@@ -84,7 +93,6 @@ class Db():
         result = []
         for elem in self.cursor.fetchall():
             result.append(elem[0])
-        logging.info(result)
         return result
 
 
@@ -100,36 +108,11 @@ class Db():
         self.insert("unauthorized_access", values)
 
 
-    def get_usr_task_counter(self, user_id):
-        s = query.get_usr_task_counter(user_id)
-        logging.info(s)
-        self.cursor.execute(s)
-        return self.cursor.fetchone()[0]
-
-
-    def set_usr_task_counter(self, user_id, counter):
-        s = f'update usr set task_counter={counter} where tg_id = {user_id}'
-        self.cursor.execute(s)
-        self.conn.commit()
-
-
-    def get_tid_from_tuid(self, uid, tuid):
-        s = query.get_tid(uid)
-        self.cursor.execute(s)
-        ans = self.cursor.fetchall()
-        logging.info(ans)
-        if ans and (len(ans)-int(tuid)) >= 0:
-            return ans[int(tuid)-1][0]
-        else:
-            return None
-
-
     def set_done(self, tid):
-        s = f'update task set done = True  where task_id={tid}'
+        s = f'update tasks set done = True  where task_id={tid}'
         self.cursor.execute(s)
-        self.cursor.execute(s)
-        logging.info(f"Just ticket out task {tid}")
         self.conn.commit()
+
 
     def is_admin(self, uid):
         s = f'select is_admin from usr where tg_id={uid}'
@@ -141,86 +124,19 @@ class Db():
             return None
 
 
-    def get_tid_from_tnum(self, uid, task_num):
-        s = query.tid_from_tnum(uid)
-        self.cursor.execute(s)
-        ans = self.cursor.fetchone()
-        if ans:
-            return ans[0]
-        else:
-            return None
-
-
-    def make_oldcount_dict(self, tid_list):
-        '''This loop creates a dict of users (keys) and the increment of
-            usr.old_task_counter (value) which is returned as ans'''
-        ans = {}
-
-        for tid in tid_list:
-            self.cursor.execute(query.get_uid_from_tid(tid))
-            uid_l = self.cursor.fetchall()
-            logging.info(f'task {tid} contains users: {uid_l}')
-            self.cursor.execute(query.set_old_true(tid))
-            for el in uid_l:
-                if el[0] in ans.keys():
-                    ans[el[0]] += 1
-                else:
-                    ans[el[0]] = 1
-        self.conn.commit()
-        logging.info(ans)
-        return ans
-
-
-
-    def make_evrth_old(self):
-        self.cursor.execute('select task_id from task where old=false')
-        l = self.cursor.fetchall()
-        tid_list = []
-        for el in l:
-            tid_list.append(el[0])
-        self.cursor.execute('update task set old=true')
-        self.conn.commit()
-        return self.make_oldcount_dict(tid_list)
-
-
-    def make_old(self, virt_list):
-        tid_list = []
-
-        '''This loop transforms a list of task numbers that user sees
-            into a list of corresponding task_ids in the database'''
-
-        logging.info(f'virtual nums are {virt_list}')
-        for virt in virt_list:
-            self.cursor.execute(query.get_tid_from_new(virt))
-            tid = self.cursor.fetchall()[0][0]
-            tid_list.append(tid)
-        logging.info(f'task_ids are {tid_list}')
-        return self.make_oldcount_dict(tid_list)
-
-
-    def count_all_tasks(self):
-        self.cursor.execute('select count(task_id) from task where old=false')
-        return self.cursor.fetchone()[0]
-
     def count_usr_tasks(self, uid):
-        self.cursor.execute(query.count_usr_tasks(uid))
+        q = query.count_usr_tasks(uid).replace('@', '').lower()
+        self.cursor.execute(q)
         return self.cursor.fetchone()[0]
 
-    def increase_old_counter(self, uids_dict):
-        uids = uids_dict.keys()
-        for uid in uids:
-            logging.info(f'uid = {uid}')
-            self.cursor.execute(query.fetch_oldc(uid))
-            res = self.cursor.fetchone()
-            oldc = res[0]
-            s = query.increase_oldc(oldc, uids_dict[uid], uid)
-            self.cursor.execute(s)
-            self.conn.commit()
-        return 1
+
+    def count_common_tasks(self):
+        q = 'select count(*) from tasks where common=1'
+        self.cursor.execute(q)
+        return self.cursor.fetchone()[0]
 
 
     def set_admin_up(self, uid):
-        logging.info(uid)
         self.cursor.execute(query.make_admin(uid))
         self.conn.commit()
 
@@ -229,6 +145,7 @@ class Db():
         self.cursor.execute(query.remove_admin(uid))
         self.conn.commit()
 
+
     def list_admins(self):
         self.cursor.execute(query.list_admins)
         ans = []
@@ -236,10 +153,23 @@ class Db():
             ans.append(el[0])
         return ans
 
-    def get_task(self, tuid):
-        self.cursor.execute(f'select task_name from task where task_id={tuid}')
-        return self.cursor.fetchone()[0]
 
     def is_done(self, tid):
-        self.cursor.execute(f'select done from task where task_id={tid}')
+        self.cursor.execute(f'select done from tasks where task_id={tid}')
         return self.cursor.fetchone()[0]
+
+    def delete_tid_from_logger(self, tid):
+        self.cursor.execute(f'delete from logger_table where task_id={tid}')
+        self.conn.commit()
+
+
+    def delete_tid_from_tasks(self, tid):
+        self.cursor.execute(f'delete from tasks where task_id={tid}')
+        self.conn.commit()
+
+    def is_owner(self, uid, tid):
+        self.cursor.execute(f'select * from logger_table where task_id={tid} and tg_id={uid}')
+        ans = self.cursor.fetchall()
+        if ans:
+            return 1
+        return 0
