@@ -2,30 +2,45 @@ from db import Db
 import re
 import emoji
 import logging
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 
 db = Db()
 
-def get_task_by_tid(tid):
+
+def get_status(dl, done):
     status = ''
-    task = db.get_task_by_tid(tid)
-    if not task[6]:
-        status = 'В работе'
+    if dl:
+        remaining_time = datetime.strptime(dl, "%Y-%m-%d").date() - date.today()
+    if done:
+        status = '\u2705 Выполнено'
     else:
-        status = 'Выполнено'
+        if dl and remaining_time < timedelta(days=2) and remaining_time >= timedelta(days=0):
+            status = '🟧 До дедлайна меньше суток'
+        elif dl and remaining_time < timedelta(days=0):
+            status = '🟥 Дедлайн истек'
+        else:
+            status = '\u25FB В работе'
+    return status
+    
+
+def get_task_by_tid(tid):
+    task = db.get_task_by_tid(tid)
+    status = get_status(task[5], task[6])
     s = f"<b>Задача M{task[0]}:</b> {task[1]}\n\n"\
     f"<b>Статус:</b> {status}\n\n"\
     f"<b>Описание:</b> {task[2]}\n\n"\
     f"<b>Ответственные:</b> {task[8]}\n\n"\
-    f"<b>Дедлайн:</b> {task[5]}\n\n"\
-    f"<b>Создатель:</b> {task[4]}\n"\
-    f"<b>Дата создания:</b> {task[3]}\n"
+    f"<b>Дедлайн:</b> {datetime.strptime(task[5], '%Y-%m-%d').strftime('%d-%m-%Y')}\n\n"\
+    f"<b>Дата создания:</b> {datetime.strptime(task[3], '%Y-%m-%d %H:%M:%S.%f').strftime('%d-%m-%Y, %H:%M')}\n\n"\
+    f"<b>Создатель:</b> {task[4]}\n"
     return s
 
 
 
-def list_headers(uid="", limit=0, offset=0):
+def list_headers(uid="", limit=0, offset=0, sort=''):
+    if sort:
+        return db.fetch_headers(uid, limit, offset, sort)
     return db.fetch_headers(uid, limit, offset)
 
 
@@ -72,7 +87,7 @@ def make_lowerscore_remove_at(l):
 def insert_new_task(task_dict, creator):
     log_row = {'tg_id': 0, 'task_id': 0, 'task_usr_id': 0}
     task_dict['creator'] = f'@{creator}'
-    task_dict['created_datetime'] = datetime.now()
+    task_dict['created_datetime'] = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
     assignees = task_dict['assignees']
     username_list = db.list_nicks()
     username_list = make_lowerscore_remove_at(username_list)    

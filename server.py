@@ -226,7 +226,7 @@ async def new_task_buttons(callback: types.CallbackQuery):
         commands.insert_new_task(new_task_dict, callback.from_user.username)
         key = await get_keyboard(callback.from_user.id)
         await Form.admin.set()
-        await bot.send_message(chat_id,"Задача сохранена.", reply_markup=key['more'])
+        await bot.send_message(chat_id,"Задача сохранена.", reply_markup=key['main'])
 
 
 @dp.message_handler(Text(equals='Создать задачу', ignore_case=True), state=Form.default)

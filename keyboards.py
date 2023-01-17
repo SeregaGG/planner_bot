@@ -28,9 +28,8 @@ def form_permission_choice(is_admin):
 
 
 def form_task_row(task):
-    s = f"M{task['task_id']} {task['header'] }"
-    if task['done']:
-        s = s + '&#9989'
+    status = commands.get_status(task['deadline'], task['done'])[0]
+    s = f"{status}[M{task['task_id']}] {task['header'] }"
     return InlineKeyboardButton(s, callback_data = f"task_btn_show_{task['task_id']}")
 
 
@@ -54,11 +53,18 @@ def form_shifting_menu(limit, offset, tasks_size, user):
 
 def form_tasks_keyboard(offset=1, user = '', check_done=0):
     limit = 10
-    tasks = commands.list_headers(limit=limit, offset=offset-1, uid = user)
+    if user!='' and user!='common':
+        tasks = commands.list_headers(limit=limit, offset=offset-1, uid = user, sort='deadline')
+    else:
+        tasks = commands.list_headers(limit=limit, offset=offset-1, uid = user)
     tasks_size = commands.get_table_size('tasks', user)
     TasksKb = InlineKeyboardMarkup()
-    for task in tasks:
-        TasksKb.row(form_task_row(task))
+    if user!='' and user!='общее':
+        for task in reversed(tasks):
+            TasksKb.row(form_task_row(task))
+    else:
+        for task in tasks:
+            TasksKb.row(form_task_row(task))
     back, forward,  count = form_shifting_menu(limit, offset, tasks_size, user)
     TasksKb.row(back, count, forward)
     if int(check_done)>0 and not commands.is_done(check_done):

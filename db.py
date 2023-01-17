@@ -8,7 +8,8 @@ import sql_queries as query
 class Db():
     def __init__(self):
         try:
-            self.conn = sqlite3.connect(os.getcwd()+'/'+os.path.join("db", "helper.db"))
+            path = os.getcwd()+'/'+os.path.join("db", "helper.db")
+            self.conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
         except Exception as e:
             logging.error(os.getcwd()+'/'+os.path.join("db", "helper.db"))
             logging.error(os.path.join("db", "helper.db"))
@@ -35,13 +36,18 @@ class Db():
         return self.cursor.fetchall()[0][0]
 
 
-    def fetch_headers(self, uid='', limit=0, offset=0) -> list:
-        if not uid:
-            cmd = query.fetch_all(limit, offset)
-        elif uid == 'common':
-            cmd = query.fetch_common(limit, offset)
+    def fetch_headers(self, uid='', limit=0, offset=0, sort='created_datetime') -> list:
+        cmd = ''
+        if sort == 'deadline':
+            cmd = query.fetch_all_sorted(sort, limit, offset, self.find_id_by_nick(uid))
         else:
-            cmd = query.fetch_by_uid(self.find_id_by_nick(uid), limit, offset)
+            if not uid:
+                cmd = query.fetch_all(limit, offset, sort)
+            elif uid == 'common':
+                cmd = query.fetch_common(limit, offset, sort)
+            else:
+                cmd = query.fetch_by_uid(self.find_id_by_nick(uid), limit, offset, sort)
+        logging.info(cmd)
         self.cursor.execute(cmd)
         rows = self.cursor.fetchall()
         result = []
@@ -50,6 +56,7 @@ class Db():
                 'task_id': row[0],
                 'header': row[1],
                 'done': row[2],
+                'deadline': row[3]
             }
             result.append(ans)
         return result

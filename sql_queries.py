@@ -9,21 +9,33 @@ def get_task_by_tid(tid):
     return f'select * from tasks where task_id={tid}'
 
 
-def fetch_common(limit=0, offset=0):
-    return  f'select task_id, header, done from tasks where common=1 order by'\
-    f' created_datetime desc limit {limit} offset {limit*offset}'
+def fetch_common(limit=0, offset=0, sort = 'created_datetime'):
+    return  f'select task_id, header, done, deadline from tasks where common=1 order by'\
+    f' {sort} desc limit {limit} offset {limit*offset}'
 
 
-def fetch_all(limit=0, offset=0):
-    return f'select task_id, header, done from tasks order by created_datetime desc'\
+def fetch_all(limit=0, offset=0, sort='created_datetime'):
+    return f'select task_id, header, done, deadline from tasks order by {sort} desc'\
             f' limit {limit} offset {limit*offset}'
     
 
-def fetch_by_uid(uid, limit=0, offset=0):
-    return f'select tasks.task_id, header, done from tasks inner join'\
+def fetch_by_uid(uid, limit=0, offset=0, sort='created_datetime'):
+    return f'select tasks.task_id, header, done, deadline from tasks inner join'\
             f' logger_table on tasks.task_id=logger_table.task_id'\
-            f' where logger_table.tg_id = {uid} order by created_datetime desc'\
+            f' where logger_table.tg_id = {uid} order by {sort} desc'\
             f' limit {limit} offset {offset*limit}'
+
+
+def fetch_all_sorted(sort, limit=0, offset=0,uid=''):
+    query = ''
+    if not uid:
+        query = fetch_all(limit, offset, sort)
+    elif uid=='общее':
+        query = fetch_common(limit, offset, sort)
+    else:
+        query = fetch_by_uid(uid, limit, offset, sort)
+
+    return  'select * from ('+query+') order by done desc'
 
 
 def make_admin(uid):
