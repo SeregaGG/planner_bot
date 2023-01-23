@@ -319,11 +319,17 @@ async def new_task(message: types.Message):
 @dp.message_handler(state=Form.rem_task)
 async def delete_task(message: types.Message):
     pattern = re.compile('^[0-9]*$')
-    await bot.delete_message(message.from_user.id, message.message_id)
+    uid = message.from_user.id
+    await bot.delete_message(uid, message.message_id)
     if (pattern.match(message.text)):
-        Task().delete(int(message.text))
-        await Form.admin.set()
-        await message.answer('Задача удалена', reply_markup=Kb.stngs(message.from_user.id))
+        response = Task().delete(int(message.text), uid)
+        if response:
+            await Form.admin.set()
+            await message.answer('Задача удалена', reply_markup=Kb.stngs(uid))
+        else:
+            s = "Вы не можете удалить эту задачу, поскольку не создавали её,"\
+                    " либо такой задачи не существует"
+            await message.answer(s)
     else:
         await message.answer("Неверный ввод. Укажите номер задачи числом. Пример: 12")
 

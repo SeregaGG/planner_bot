@@ -81,9 +81,22 @@ class Task:
         return d
 
 
-    def delete(self, tid):
-        self.db.delete('tasks', ['task_id', tid]) 
-        self.db.delete('logger_table', ['task_id', tid]) 
+    def get_creator(self, tid):
+        response = self.db.get_table_column("tasks", "creator", {'task_id': tid})
+        if response:
+            return response[0]
+        return 0
+
+
+    def delete(self, tid, uid):
+        logging.info(f'delete(): {tid}')
+        if not self.db.get_table_column("tasks", "task_id", {'task_id': tid}):
+            return 0
+        if User().is_admin(uid) or uid == self.get_creator(tid):
+            self.db.delete('tasks', ['task_id', tid]) 
+            self.db.delete('logger_table', ['task_id', tid]) 
+            return 1
+        return 0
         
 
     

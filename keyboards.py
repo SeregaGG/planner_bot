@@ -52,10 +52,12 @@ class Keyboard:
         Ak = IKM()
         noti = IK('🔈Уведомления', callback_data='settings_notifications')
         delete = IK('🚫Удалить задачу', callback_data='settings_delete')
-        admin = IK('👮Админы', callback_data='settings_admins')
+        admin = IK('🌚Админы', callback_data='settings_admins')
         back = IK('↩Назад', callback_data='settings_back')
-        Ak.row(noti, admin)
-        Ak.row(back, delete)
+        deluser = IK('👮Удалить участника', callback_data = 'deluser')
+        Ak.row(noti, admin,)
+        Ak.row(deluser, delete)
+        Ak.row(back)
         return Ak
 
     def new_task_inline(self):

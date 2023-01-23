@@ -107,7 +107,7 @@ class User:
         if not uid:
             uid = self.attr.id
         return self.db.get_table_column("usr", "admin", {"id": uid})[0]
-            
+
 
     def as_dict(self):
         d = {}

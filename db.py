@@ -112,11 +112,14 @@ class Db():
 
     def select_request(self, table: str, columns: list, filtr: dict = {}, offset=0, limit=0):
         s = f"select {','.join(columns)} from {table}"
+        logging.info(filtr)
         if filtr:
             where = self.where_chain(filtr, 'and')
             s+= f" where {where}"
+        logging.info(s)
         if limit:
             s += f" limit {limit} offset {offset}"
+        logging.info(s)
         self.cursor.execute(s)
         raw = self.cursor.fetchall()
         return raw
