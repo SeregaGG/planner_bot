@@ -160,7 +160,7 @@ class Task:
         s = f"🪧 <b>Задача {self.attr.task_id}:</b> {self.attr.header}\n\n"\
         f"{self.get_status()} (🗓{deadline})\n\n"\
         f"📝<b>Описание</b>: {self.attr.body}\n\n"\
-        f"👨‍🔧👨🏻‍🏭  @{creator}  ⏩  {assignees}\n\n"\
+        f"🥷🥷@{creator}  ⏩  {assignees}\n\n"\
         f"<b>Дата создания:</b> {self.attr.createdtime.strftime(TIMEFORMAT)}\n\n"\
         f"<pre>                                &#x200D</pre>"
         return s

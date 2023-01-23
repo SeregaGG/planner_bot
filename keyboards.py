@@ -5,7 +5,6 @@ from enums import TaskState, SortType
 from task import Task
 from user import User
 from keys import cmdkey
-import commands
 import logging
 
 
