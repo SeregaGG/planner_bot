@@ -13,8 +13,9 @@ class AccessMiddleware(BaseMiddleware):
 
     async def on_process_message(self, message: types.Message, _):
         if message.from_user.id not in self.access_ids:
-            logging.warning(f"{message.from_user.id} attempted to login")
-            commands.report_trespasser(message.from_user)
-            raise CancelHandler()
+            logging.info("Processing a message")
+            #logging.warning(f"{message.from_user.id} attempted to login")
+            #commands.report_trespasser(message.from_user)
+            #raise CancelHandler()
 
 

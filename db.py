@@ -3,24 +3,29 @@ import re
 import logging
 import os
 import getpass
-import sql_queries as query
+from datetime import datetime, date
+from enums import SortType, TaskState
+
+
 
 class Db():
+
     def __init__(self):
         try:
             path = os.getcwd()+'/'+os.path.join("db", "helper.db")
-            self.conn = sqlite3.connect(path, detect_types=sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES)
+            detect_types = sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES
+            self.conn = sqlite3.connect(path, detect_types=detect_types)
         except Exception as e:
-            logging.error(os.getcwd()+'/'+os.path.join("db", "helper.db"))
-            logging.error(os.path.join("db", "helper.db"))
             raise sqlite3.OperationalError(e) 
+
         self.cursor = self.conn.cursor()
         self.check_db_exists()
         logging.basicConfig(level=logging.INFO)
 
 
     def check_db_exists(self):
-        self.cursor.execute(query.check_db_exist)
+        check_db_exist = "SELECT name FROM sqlite_master WHERE type='table' AND name='usr'"
+        self.cursor.execute(check_db_exist)
         table_exists = self.cursor.fetchall()
         if table_exists:
             return
@@ -31,152 +36,197 @@ class Db():
             self.conn.commit()
 
 
-    def get_table_size(self, table):
-        self.cursor.execute(f'select count(1) from {table}')
+    def where_chain(self, where_dict, operator='and'):
+        where = []
+        for el in where_dict.keys():
+            where.append(f'{el}={where_dict[el]}')
+        operator = f' {operator} '
+        return operator.join(where)
+
+
+    def get_table_size(self, table, filtr = {}, join=''):
+        s = f'select count(1) from {table}'
+        if join:
+            s+= f' {join}'
+        if filtr:
+            s+= f" where {self.where_chain(filtr, 'and')}"
+        self.cursor.execute(s)
         return self.cursor.fetchall()[0][0]
 
 
-    def fetch_headers(self, uid='', limit=0, offset=0, sort='created_datetime') -> list:
-        cmd = ''
-        if sort == 'deadline':
-            cmd = query.fetch_all_sorted(sort, limit, offset, self.find_id_by_nick(uid))
-        else:
-            if not uid:
-                cmd = query.fetch_all(limit, offset, sort)
-            elif uid == 'common':
-                cmd = query.fetch_common(limit, offset, sort)
-            else:
-                cmd = query.fetch_by_uid(self.find_id_by_nick(uid), limit, offset, sort)
+    def sorted_headers(self, uid, limit, offset, sort) -> list:
+        args = ['tasks.task_id', 'header', 'deadline', 'state']
+        cmd = f"select {','.join(args)} from tasks"
+        if sort == SortType.COMMON:
+            cmd += f' where  common = 1'
+        elif sort == SortType.DEADLINE:
+            join=f" join logger_table on logger_table.task_id=tasks.task_id"\
+                    f" where logger_table.tg_id={uid}"
+            cmd += join
+        cmd += f" order by createdtime desc"
+        cmd += f' limit {limit} offset {limit*offset}'
         logging.info(cmd)
         self.cursor.execute(cmd)
         rows = self.cursor.fetchall()
+            
         result = []
         for row in rows:
-            ans ={
-                'task_id': row[0],
-                'header': row[1],
-                'done': row[2],
-                'deadline': row[3]
-            }
+            ans = {}
+            for i in range(len(args)):
+                if '.' in args[i]:
+                    args[i] = args[i].split('.')[1]
+                ans[args[i]] = row[i]
             result.append(ans)
         return result
-
-
-    def get_task_by_tid(self, tid):
-        self.cursor.execute(query.get_task_by_tid(tid))
-        res = self.cursor.fetchone()
-        return res
 
 
     def insert(self, table: str, column_values: dict):
         columns = ', '.join(column_values.keys())
         values = tuple(column_values.values())
         placeholders =','.join('?'*len(column_values.keys()))
-        s = query.insert_general(table, columns, placeholders)
+        s = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
         self.cursor.execute(s, values)
         self.conn.commit()
         return self.cursor.lastrowid
 
 
-    def find_id_by_nick(self, nickname):
-        self.cursor.execute(query.get_id_by_nick(nickname.replace("@", '').lower()))
-        return self.cursor.fetchone()[0]
+    def update(self, table: str, column_values: dict, filtr: dict = {}):
+        cols = []
+        for key in column_values.keys():
+            cols.append(f'{key}=?')
+        columns = ', '.join(cols)
+        cols = []
+        if filtr:
+            where = self.where_chain(filtr, 'and')
+        values = tuple(column_values.values())
+        s = f'update {table} set {columns} where {where}'
+        self.cursor.execute(s, values)
+        self.conn.commit()
 
 
-    def list_nicks(self):
-        s = query.list_nicks
-        try:
-            self.cursor.execute(s)
-        except Exception as e:
-            logging.error(e)
-        result = []
-        for elem in self.cursor.fetchall():
-            result.append(elem[0])
-        return result
-
-
-    def list_ids(self):
-        self.cursor.execute(query.list_uids)
-        result = []
-        for elem in self.cursor.fetchall():
-            result.append(elem[0])
-        return result
-
-
-    def list_usernames(self):
-        self.cursor.execute(query.list_usernames)
-        result = []
-        for elem in self.cursor.fetchall():
-            result.append(elem[0])
-        return result
-
-
-    def register_unauthorized(self, values: dict):
-        self.insert("unauthorized_access", values)
-
-
-    def set_done(self, tid):
-        s = f'update tasks set done = True  where task_id={tid}'
+    def delete(self, table, where):
+        s = f'delete from {table} where {where[0]}={where[1]}'
         self.cursor.execute(s)
         self.conn.commit()
 
 
-    def is_admin(self, uid):
-        s = f'select is_admin from usr where tg_id={uid}'
+    def select_request(self, table: str, columns: list, filtr: dict = {}, offset=0, limit=0):
+        s = f"select {','.join(columns)} from {table}"
+        if filtr:
+            where = self.where_chain(filtr, 'and')
+            s+= f" where {where}"
+        if limit:
+            s += f" limit {limit} offset {offset}"
         self.cursor.execute(s)
-        ans = self.cursor.fetchone()
-        if ans:
-            return ans[0]
+        raw = self.cursor.fetchall()
+        return raw
+
+
+    def get_table_column(self, table: str, column: str, filtr: dict = {}, offset=0, limit=0):
+        raw = self.select_request(table, [column], filtr, offset, limit)
+        response = []
+        for elem in raw:
+            response.append(elem[0])
+        return response
+
+
+    def get_table_row(self, table: str, columns: list, filtr: dict = {}, offset=0, limit=0):
+        raw = self.select_request(table, columns, filtr, offset, limit)
+        response = {}
+        if columns[0] != '*':
+            for i in range(0, len(columns)):
+                response[columns[i]] = raw[0][i]
         else:
-            return None
+            return raw[0]
+        return response
 
 
-    def count_usr_tasks(self, uid):
-        q = query.count_usr_tasks(uid).replace('@', '').lower()
-        self.cursor.execute(q)
+    def username_to_id(self, username: str = '', user_list: list = []):
+        s = 'select id from usr where '
+        if not username and not user_list:
+            raise ValueError("At least one of the parameters must be set")
+        elif username:
+            end = f"username = '{username}'"
+        else:
+            phrase_list = []
+            for u in user_list:
+                phrase_list.append(f"username = '{u}'")
+            end = ' or '.join(phrase_list)
+        s += end
+        logging.info(s)
+        self.cursor.execute(s)
+        if username:
+            return self.cursor.fetchone()[0]
+        else:
+            response = {}
+            ans = self.cursor.fetchall()
+            logging.info(ans)
+            for i in range(0, len(user_list)):
+                response[user_list[i]] = ans[i][0]
+            return response
+                
+            
+    def id_to_username(self, uid: str = '', uid_list: list = []):
+        s = 'select username from usr where '
+        if not uid and not uid_list:
+            raise ValueError("At least one of the parameters must be set")
+        elif uid:
+            end = f"id = '{uid}'"
+        else:
+            phrase_list = []
+            for u in uid_list:
+                phrase_list.append(f"id = '{u}'")
+            end = ' or '.join(phrase_list)
+        s += end
+        logging.info(s)
+        self.cursor.execute(s)
+        if uid:
+            return self.cursor.fetchone()[0]
+        else:
+            response = []
+            ans = self.cursor.fetchall()
+            for i in ans:
+                response.append(i[0])
+            return response
+
+
+    def user_stats(self, where='', uid = ''):
+        cmd = f"select count(1) from tasks"
+        join=f"join logger_table on logger_table.task_id=tasks.task_id where logger_table.tg_id={uid}"
+        if uid:
+            s = f'{cmd} {join} and {where}'
+        elif where:
+            s = f'{cmd} where {where}'
+        else:
+            s = f'{cmd}'
+        logging.info(s)
+        self.cursor.execute(s)
         return self.cursor.fetchone()[0]
 
 
-    def count_common_tasks(self):
-        q = 'select count(*) from tasks where common=1'
-        self.cursor.execute(q)
-        return self.cursor.fetchone()[0]
+    def count_active(self, uid=''):
+        a_s = TaskState.AWAITING_START.value
+        i_p = TaskState.IN_PROCESS.value
+        where = f'(tasks.state = {a_s} or tasks.state = {i_p})'
+        return self.user_stats(where, uid)
+
+    def count_inproc(self, uid=''):
+        i_p = TaskState.IN_PROCESS.value
+        where = f'tasks.state = {i_p}'
+        return self.user_stats(where, uid)
 
 
-    def set_admin_up(self, uid):
-        self.cursor.execute(query.make_admin(uid))
-        self.conn.commit()
-
-
-    def set_admin_down(self, uid):
-        self.cursor.execute(query.remove_admin(uid))
-        self.conn.commit()
+    def count_done(self, uid=''):
+        d = TaskState.DONE.value
+        where = f'tasks.state = {d}'
+        return self.user_stats(where, uid)
 
 
     def list_admins(self):
-        self.cursor.execute(query.list_admins)
+        s = 'select id, username, admin from usr'
+        self.cursor.execute(s)
+        response = self.cursor.fetchall()
         ans = []
-        for el in self.cursor.fetchall():
-            ans.append(el[0])
+        for row in response:
+            ans.append({'id':row[0], 'username':row[1], 'admin':row[2]})
         return ans
-
-
-    def is_done(self, tid):
-        self.cursor.execute(f'select done from tasks where task_id={tid}')
-        return self.cursor.fetchone()[0]
-
-    def delete_tid_from_logger(self, tid):
-        self.cursor.execute(f'delete from logger_table where task_id={tid}')
-        self.conn.commit()
-
-
-    def delete_tid_from_tasks(self, tid):
-        self.cursor.execute(f'delete from tasks where task_id={tid}')
-        self.conn.commit()
-
-    def is_owner(self, uid, tid):
-        self.cursor.execute(f'select * from logger_table where task_id={tid} and tg_id={uid}')
-        ans = self.cursor.fetchall()
-        if ans:
-            return 1
-        return 0
