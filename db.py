@@ -189,14 +189,17 @@ class Db():
     def user_stats(self, where='', uid = ''):
         cmd = f"select count(1) from tasks"
         join=f"join logger_table on logger_table.task_id=tasks.task_id where logger_table.tg_id={uid}"
-        if uid:
+        if uid and where:
             s = f'{cmd} {join} and {where}'
-        elif where:
+        elif uid and not where:
+            s = f'{cmd} {join}'
+        elif where and not uid:
             s = f'{cmd} where {where}'
         else:
             s = f'{cmd}'
         self.cursor.execute(s)
-        return self.cursor.fetchone()[0]
+        ans = self.cursor.fetchone()
+        return ans[0]
 
 
     def count_active(self, uid=''):
@@ -218,10 +221,13 @@ class Db():
 
 
     def list_admins(self):
-        s = 'select id, username, admin from usr'
+        s = 'select id, username, admin from usr where blacklist = 0'
         self.cursor.execute(s)
         response = self.cursor.fetchall()
         ans = []
         for row in response:
             ans.append({'id':row[0], 'username':row[1], 'admin':row[2]})
         return ans
+
+    def blacklist(self):
+        return self.get_table_column('usr', 'tg_id', {'blacklist': 1})

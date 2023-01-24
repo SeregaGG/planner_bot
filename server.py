@@ -13,7 +13,7 @@ import asyncio
 from task_queue import NewTaskQueue as TaskQueue
 from user import User
 from task import Task
-from enums import SortType, TIMEFORMAT
+from enums import SortType, TIMEFORMAT, TaskState
 from keys import cmdkey
 from deluser_queue import DeluserRow
 
@@ -90,13 +90,6 @@ async def get_callback_info(callback: types.CallbackQuery):
     return info
 
 
-async def get_current_task_number(callback):
-    info = callback.message.reply_markup.inline_keyboard
-    if len(info[-1]) == 1:
-        return int(info[-1][0]['callback_data'].replace('btn_submit', ''))
-    return 0
-
-
 async def send_long(text, message, new_markup=""):
     if text and len(text) > 4096:
         for x in range(0, len(text), 4096):
@@ -141,16 +134,23 @@ async def send_welcome(message: types.Message):
     await message.answer(s, reply_markup=Kb.main(new_user))
 
 
-@dp.callback_query_handler(Text(startswith='btn_submit'), state=Form.newtask)
-@dp.callback_query_handler(Text(startswith='btn_submit'), state=Form.admin)
-@dp.callback_query_handler(Text(startswith='btn_submit'), state=Form.default)
-async def submit_task(callback: types.CallbackQuery):
+
+@dp.callback_query_handler(Text(startswith='btn_state'), state=Form.newtask)
+@dp.callback_query_handler(Text(startswith='btn_state'), state=Form.admin)
+@dp.callback_query_handler(Text(startswith='btn_state'), state=Form.default)
+async def accept_task(callback: types.CallbackQuery):
     i = await get_callback_info(callback)
-    Task().set_done(i.tid)
+    call = callback.data
+    if call.startswith('btn_state_start') or call.startswith('btn_state_return'):
+        Task().set_task_state(i.tid, TaskState.IN_PROCESS)
+    elif call.startswith('btn_state_complete'):
+        Task().set_task_state(i.tid, TaskState.AWAITING_SUBMIT)
+    else:
+        Task().set_task_state(i.tid, TaskState.DONE)
     i.task = await show_task(i.tid)
     key = Kb.tasklist_inline(i.uid, i.tid, i.offset, i.username, i.order)
     await bot.edit_message_text(i.task, i.uid, i.mes_id, reply_markup = key)
-    
+
 
 @dp.callback_query_handler(Text(startswith='task_btn_shift'), state=Form.newtask)
 @dp.callback_query_handler(Text(startswith='task_btn_shift'), state=Form.default)
@@ -191,15 +191,28 @@ async def print_all_tasks(message: types.Message):
     await message.answer(stats, reply_markup=key)
 
 
+@dp.callback_query_handler(Text(startswith='my_tasks'), state=Form.default)
+async def print_my_tasks(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    mid = callback.message.message_id
+    username = callback.from_user.username
+    query = callback.data.replace('my_tasks_', '')
+    logging.info(query)
+    if query == 'maker':
+        key = Kb.tasklist_inline(uid, username=username, order=SortType.DEADLINE)
+        stats = User().show_stats(username)
+    else:
+        pass
+    await bot.delete_message(uid, mid)
+    await bot.send_message(uid, stats, reply_markup=key)
+
+
 @dp.message_handler(Text(equals=cmdkey['my'], ignore_case=True), state=Form.default)
 async def print_my_tasks(message: types.Message):
-    await Form.default.set()
     uid = message.from_user.id
     username = message.from_user.username
-    key = Kb.tasklist_inline(uid, username=username, order=SortType.DEADLINE)
-    stats = User().show_stats(username)
     await bot.delete_message(message.from_user.id, message.message_id)
-    await message.answer(stats, reply_markup=key)
+    await message.answer('Выбери тип задач', reply_markup=Kb.my_tasks)
 
 
 @dp.message_handler(Text(equals=cmdkey['common'], ignore_case=True), state=Form.default)
@@ -409,4 +422,5 @@ async def advanced_markup(message: types.Message):
 if __name__ == '__main__':
     #loop = asyncio.get_event_loop()
     #loop.create_task(alarm())
+    Form.default.set()
     executor.start_polling(dp, skip_updates=True)

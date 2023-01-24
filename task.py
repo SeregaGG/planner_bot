@@ -137,15 +137,17 @@ class Task:
     def get_status(self):
         status_dict = {
             'done': '\u2705 Выполнено',
-            'submit': '\u2705 Выполнено (Ожидает подвтерждения)',
-            'proc': '\u25FB В работе',
-            'wait': '\u25FB Не принят в работу',
+            'submit': '☑ Выполнено (Ожидает подвтерждения)',
+            'proc': '🔳 В работе',
+            'wait': '\u25FB Ждёт старта',
             'hurry': '🟧 В работе',
             'late':  '🟥 Дедлайн истек'
         }
         status = ''
         delta = self.attr.deadline - datetime.now()
         common = datetime.fromtimestamp(0)
+        if self.attr.deadline == common:
+            logging.info(self.attr.state)
         if self.attr.state == TaskState.DONE:
             return status_dict['done']
         elif self.attr.state == TaskState.AWAITING_SUBMIT:
@@ -155,7 +157,11 @@ class Task:
                 return f"{status_dict['late']} {self.calc_delta(delta)}"
             elif self.attr.deadline != common and delta < timedelta(days=2):
                 return f"{status_dict['hurry']} {self.calc_delta(delta)}"
-            return f"{status_dict['proc']} {self.calc_delta(delta)}"
+            elif self.attr.deadline != common or self.attr.state==TaskState.IN_PROCESS:
+                return f"{status_dict['proc']} {self.calc_delta(delta)}"
+            else:
+                return f"{status_dict['wait']} {self.calc_delta(delta)}"
+                
 
 
     def show(self):
@@ -179,9 +185,10 @@ class Task:
         return s
 
 
-    def check_done(tid = 0):
-        if not uid:
+    def set_task_state(self, tid, state):
+        if not tid:
             tid = self.attr.task_id
             self.attr.state = TaskState.AWAITING_SUBMIT
-        state = TaskState.AWAITING_SUBMIT.value
-        self.db.update("usr", {'state': state}, {'task_id': tid})
+        self.db.update("tasks", {'state': state.value}, {'task_id': tid})
+
+

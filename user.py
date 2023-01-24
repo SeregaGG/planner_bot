@@ -90,7 +90,7 @@ class User:
 
 
     def usernamelist(self, mention=0):
-        user_list = self.db.get_table_column("usr", "username")
+        user_list = self.db.get_table_column("usr", "username", {'blacklist': False})
         if mention:
             for i in range(0, len(user_list)):
                 user_list[i] = f'@{user_list[i]}'
@@ -98,7 +98,7 @@ class User:
 
 
     def idlist(self):
-        l = self.db.get_table_column("usr", 'id')
+        l = self.db.get_table_column("usr", 'id', {'blacklist': False})
         return l
 
 
@@ -119,19 +119,15 @@ class User:
     def show_stats(self, username=''):
         if username:
             uid = self.username_to_id(username)
-            s = f'<b>Задачи 👤@{username}:</b>\n\n'\
-            f'<i>Активных задач:</i> {self.db.count_active(uid)}\n'\
-            f'<i>В работе:</i> {self.db.count_inproc(uid)}\n'\
-            f'<i>Завершенных:</i> {self.db.count_done(uid)}\n'\
-            f'<i>Всего задач:</i> {self.db.user_stats()}\n'\
-            f"<pre>                                &#x200D</pre>"
+            s = f'<b>🥷@{username}:</b>\n'
         else:
-            s = f'<b>Все задачи:</b>\n\n'\
-            f'<i>Активных задач:</i> {self.db.count_active()}\n'\
-            f'<i>В работе:</i> {self.db.count_inproc()}\n'\
-            f'<i>Завершенных:</i> {self.db.count_done()}\n'\
-            f'<i>Всего задач:</i> {self.db.user_stats()}\n'\
-            f"<pre>                                &#x200D</pre>"
+            uid = 0
+            s = f'🧕🐒🥷🤦👷\n'\
+
+        s+= f'<i>Актуальных задач:</i> {self.db.count_active(uid)}\n'\
+            f'<i>Принято в работу:</i> {self.db.count_inproc(uid)}\n'\
+            f'<i>Всего выполнено:</i> {self.db.count_done(uid)}/{self.db.user_stats()}'\
+            f'<pre>                         &#x200D</pre>'
         return s
 
 
@@ -146,4 +142,4 @@ class User:
         if not users:
             return
         for user in users:
-            self.db.delete('usr', ['username', f"'{user}'"])
+            self.db.update('usr', {'blacklist': 1},{'username': f"'{user}'"})

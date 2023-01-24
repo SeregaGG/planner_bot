@@ -4,7 +4,8 @@ create table usr(
     last_name integer,
     is_bot boolean,
     username varchar (255),
-    admin boolean default False
+    admin boolean default False,
+    blacklist boolean default False
 );
 
 create table tasks(
@@ -55,6 +56,6 @@ values
 
 insert into tasks(header, body, creator, common, createdtime)
 values
-    ("Задача 1", "Разобраться с тем, как работает бот", "PlannerBot", 1, 0.0),
-    ("Задача 2", "Создать свою первую задачу", "PlannerBot", 1, 0.0),
-    ("Задача 3", "Отметить задачи 1 и 2 как выполненные", "PlannerBot", 1, 0.0);
+    ("Задача 1", "Разобраться с тем, как работает бот", 5050470568, 1, 0.0),
+    ("Задача 2", "Создать свою первую задачу", 5050470568, 1, 0.0),
+    ("Задача 3", "Отметить задачи 1 и 2 как выполненные", 5050470568, 1, 0.0);

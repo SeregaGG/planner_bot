@@ -16,6 +16,7 @@ class Keyboard:
         self.admin_set_kb = self.admin_settings_kb()
         self.user_set_kb = None #todo
         self.new_task_inline = self.new_task_inline()
+        self.my_tasks =  self.my_tasks_inline()
 
 
     def main(self, user: User):
@@ -101,6 +102,12 @@ class Keyboard:
         return kboard
 
 
+    def my_tasks_inline(self):
+        a = IK('Я - исполнитель', callback_data='my_tasks_maker')
+        b = IK('Я - постановщик', callback_data='my_tasks_setter')
+        return IKM().row(a, b)
+
+
     def assignees_inline(self, command=''):
         kb = IKM()
         usernames = User().usernamelist(mention=1)
@@ -158,17 +165,33 @@ class Keyboard:
         return TasksKb
 
 
-    def submit_button(self, uid, tid):
-        text = callback = ''
+    def submit_button(self, uid, tid, TasksKb):
+        text = callback = text2 = callback2 = ''
         user = User(uid)
+        task = Task(tid)
+        task.load_from_db()
         user.from_database()
-        if  tid != 0 and user.is_assignee(tid):
-            text = f'Сдать задачу #{tid}'
-            callback = f'btn_submit_{tid}'
-        else:
-            return None
-            callback = f'btn_submit_{tid}'
-        return IK(text, callback_data=callback)
+        logic1 =  user.is_assignee(tid) and task.attr.state == TaskState.IN_PROCESS
+        logic2 = uid == task.attr.creator and task.attr.state == TaskState.AWAITING_SUBMIT 
+        logic3 = user.is_assignee(tid) and task.attr.state == TaskState.AWAITING_START
+        logic4 = uid == task.attr.creator and task.attr.common == 1
+        if logic1: 
+            text = f'☑ Сдать задачу #{tid}'
+            callback = f'btn_state_complete_{tid}'
+            TasksKb.row(IK(text, callback_data=callback))
+        elif logic2 or logic4:
+            text = f'✅Принять #{tid}'
+            callback = f'btn_state_accept_{tid}'
+            if logic2:
+                text2 = f'❌Вернуть #{tid}'
+                callback2 = f'btn_state_return_{tid}'
+                TasksKb.row(IK(text, callback_data=callback),IK(text2, callback_data=callback2))
+            else:
+                TasksKb.row(IK(text, callback_data=callback))
+        elif logic3:
+            text = f'🏋Приступить к задаче'
+            callback = f'btn_state_start_{tid}'
+            TasksKb.row(IK(text, callback_data=callback))
 
 
     def tasklist_inline(self, uid, tid=0, offset=1, username='', order=SortType.CREATION):
@@ -185,8 +208,7 @@ class Keyboard:
         else:
             back, forward, count = self.form_menu(offset, tasks_size, username, tid)
         TasksKb.row(back, count, forward)
-        submitbut = self.submit_button(uid, tid)
-        if submitbut:
-            TasksKb.row(submitbut)
+        if tid:
+            self.submit_button(uid, tid, TasksKb)
         return TasksKb
 
