@@ -12,7 +12,6 @@ class DbAttr:
         self.is_bot = None
         self.username = None
         self.admin = None
-    
 
 
 class User:
@@ -141,3 +140,10 @@ class User:
             uid = self.attr.id
             self.attr.admin = state
         self.db.update('usr', {'admin': state}, {'id': uid})
+
+
+    def del_users(self, users: list):
+        if not users:
+            return
+        for user in users:
+            self.db.delete('usr', ['username', f"'{user}'"])

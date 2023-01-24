@@ -54,7 +54,7 @@ class Keyboard:
         delete = IK('🚫Удалить задачу', callback_data='settings_delete')
         admin = IK('🌚Админы', callback_data='settings_admins')
         back = IK('↩Назад', callback_data='settings_back')
-        deluser = IK('👮Удалить участника', callback_data = 'deluser')
+        deluser = IK('👮Удалить участника', callback_data = 'settings_deluser')
         Ak.row(noti, admin,)
         Ak.row(deluser, delete)
         Ak.row(back)
@@ -174,7 +174,6 @@ class Keyboard:
     def tasklist_inline(self, uid, tid=0, offset=1, username='', order=SortType.CREATION):
         TasksKb = IKM()
         tasks_size = Task().table_size(order, username=username)
-        logging.info(tasks_size)
         if username:
             others_username = User().username_to_id(username)
             TasksKb = self.form_tasks(TasksKb, order, others_username, offset, tasks_size)

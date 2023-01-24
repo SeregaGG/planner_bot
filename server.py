@@ -15,6 +15,7 @@ from user import User
 from task import Task
 from enums import SortType, TIMEFORMAT
 from keys import cmdkey
+from deluser_queue import DeluserRow
 
 
 @dataclass
@@ -39,6 +40,7 @@ class Form(StatesGroup):
     add_task_body = State()
     add_task_assignees = State()
     add_task_deadline = State()
+    deluser = State()
 
 
 API_TOKEN="1115198779:AAHPsbIAg3UBSb4A-ZsulryV1LQdi3Ck2Hc"
@@ -48,6 +50,7 @@ storage = MemoryStorage()
 dp = Dispatcher(bot=bot, storage=storage)
 dp.middleware.setup(AccessMiddleware(User().idlist()))
 Tqueue = TaskQueue()
+Delqueue = DeluserRow()
 Kb = Keyboard(5)
 
 
@@ -108,7 +111,6 @@ async def print_editing_task(message, task: Task):
     if task.attr.deadline:
         deadline = datetime.fromtimestamp(task.attr.deadline).strftime(TIMEFORMAT)
     if task.assignees:
-        logging.info(assignees)
         for i in range(0, len(task.assignees)):
             assignees.append(f'@{task.assignees[i]}')
 
@@ -224,7 +226,6 @@ async def others_tasks(callback: types.CallbackQuery):
 async def others_tasks_button(message: types.Message):
     await bot.delete_message(message.from_user.id, message.message_id)
     key = Kb.assignees_inline('otherstasks')
-    logging.info(key)
     await message.answer(f"{cmdkey['others'][0]}Выберите пользователя", reply_markup=key)
 
 
@@ -258,7 +259,6 @@ async def new_task_deadline(message: types.Message):
 
 @dp.callback_query_handler(Text(startswith='new_task_assignees_'), state=Form.newtask)
 async def new_task_assignees(callback: types.CallbackQuery):
-    logging.info(callback)
     uid = callback.from_user.id
     mid = callback.message.message_id
     task = Tqueue.getTask(uid)
@@ -339,7 +339,6 @@ async def change_admins(callback: types.CallbackQuery):
     info = callback.data.replace('ch_admins_', '').split('_')
     uid = callback.from_user.id
     mid = callback.message.message_id
-    logging.info(info)
     if info[0] != 'save':
         User().make_admin(int(info[0]), not int(info[1]))
         await bot.edit_message_reply_markup(uid, mid, reply_markup=Kb.adminlist())
@@ -349,6 +348,24 @@ async def change_admins(callback: types.CallbackQuery):
         await bot.edit_message_text(cmdkey['settings'], uid, mid, reply_markup=key)
         
 
+@dp.callback_query_handler(Text(startswith='deluser'), state=Form.deluser)
+async def deluser(callback: types.CallbackQuery):
+    uid = callback.from_user.id
+    mid = callback.message.message_id
+    info = callback.data.replace('deluser_assignees_@', '')
+    logging.info(Delqueue.row)
+    if info != 'deluser_assignees_save':
+        dellist = Delqueue.add(uid, info)
+        s = f"Вы собираетесь удалить:\n {', '.join(dellist)}".replace(' ', ' @')
+        await bot.edit_message_text(s, uid, mid, reply_markup=Kb.assignees_inline('deluser'))
+    else:
+        User().del_users(Delqueue.pop(uid))
+        await Form.admin.set()
+        await bot.edit_message_text(cmdkey['settings'], uid, mid, reply_markup=Kb.admin_set_kb)
+
+
+
+
 
 @dp.callback_query_handler(Text(startswith='settings'), state=Form.admin)
 @dp.callback_query_handler(Text(startswith='settings'), state=Form.rem_task)
@@ -357,18 +374,20 @@ async def handle_settings(callback: types.CallbackQuery):
     query = callback.data.replace("settings_", '')
     uid = callback.from_user.id
     mid = callback.message.message_id
-    logging.info(query)
     if query == 'delete':
         s = 'Пришли мне номер задачи, которую надо удалить'
         await Form.rem_task.set()
         await bot.edit_message_text(s, uid, mid, reply_markup=Kb.go_back_kb('settings_back_rem'))
 
     elif query == 'admins':
-        s = 'Нажми на имя, чтобы назначить или снять его с должности админа\n'\
-            '🌚 - стоит рядом с админами'
+        s = 'Нажми на имя, чтобы назначить или снять его с должности админа:\n'\
+            '🌚 <i>- стоит рядом с админами</i>'
         await Form.usr_list_perm.set()
         await bot.edit_message_text(s, uid, mid, reply_markup=Kb.adminlist())
-
+    elif query == 'deluser':
+        s = f'Выберите пользователей, которых хотите удалить:'
+        await Form.deluser.set()
+        await bot.edit_message_text(s, uid, mid, reply_markup=Kb.assignees_inline('deluser'))
     elif query == 'back':
         await bot.delete_message(uid, mid)
         await Form.default.set()
@@ -384,7 +403,6 @@ async def advanced_markup(message: types.Message):
     await Form.admin.set()
     await bot.delete_message(message.from_user.id, message.message_id)
     key = Kb.admin_set_kb
-    logging.info(key)
     await message.answer(cmdkey['settings'], reply_markup=key)
 
 

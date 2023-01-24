@@ -65,7 +65,6 @@ class Db():
             cmd += join
         cmd += f" order by createdtime desc"
         cmd += f' limit {limit} offset {limit*offset}'
-        logging.info(cmd)
         self.cursor.execute(cmd)
         rows = self.cursor.fetchall()
             
@@ -112,14 +111,11 @@ class Db():
 
     def select_request(self, table: str, columns: list, filtr: dict = {}, offset=0, limit=0):
         s = f"select {','.join(columns)} from {table}"
-        logging.info(filtr)
         if filtr:
             where = self.where_chain(filtr, 'and')
             s+= f" where {where}"
-        logging.info(s)
         if limit:
             s += f" limit {limit} offset {offset}"
-        logging.info(s)
         self.cursor.execute(s)
         raw = self.cursor.fetchall()
         return raw
@@ -156,14 +152,12 @@ class Db():
                 phrase_list.append(f"username = '{u}'")
             end = ' or '.join(phrase_list)
         s += end
-        logging.info(s)
         self.cursor.execute(s)
         if username:
             return self.cursor.fetchone()[0]
         else:
             response = {}
             ans = self.cursor.fetchall()
-            logging.info(ans)
             for i in range(0, len(user_list)):
                 response[user_list[i]] = ans[i][0]
             return response
@@ -181,7 +175,6 @@ class Db():
                 phrase_list.append(f"id = '{u}'")
             end = ' or '.join(phrase_list)
         s += end
-        logging.info(s)
         self.cursor.execute(s)
         if uid:
             return self.cursor.fetchone()[0]
@@ -202,7 +195,6 @@ class Db():
             s = f'{cmd} where {where}'
         else:
             s = f'{cmd}'
-        logging.info(s)
         self.cursor.execute(s)
         return self.cursor.fetchone()[0]
 
