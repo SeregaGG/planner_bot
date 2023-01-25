@@ -4,7 +4,7 @@ from aiogram.dispatcher.handler import CancelHandler
 from aiogram.dispatcher.middlewares import BaseMiddleware
 import logging
 from datetime import datetime
-from db import Db as db
+from classes.db import Db as db
 
 
 class AccessMiddleware(BaseMiddleware):
