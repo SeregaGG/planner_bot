@@ -22,7 +22,8 @@ class Task:
     def __init__(self, tid=0, header=[]):
         self.db = database()
         self.attr = DbAttr()
-        self.assignees = []
+        self.ass_usernames = []
+        self.ass_uids = []
         if header:
             self.load_from_header(header)
         elif tid:
@@ -57,16 +58,13 @@ class Task:
 
     def save_to_db(self):
         log_row = {'tg_id': 0, 'task_id': 0}
-        if not self.assignees:
+        if not self.ass_uids:
             self.attr.common = True
         self.attr.createdtime = datetime.now().timestamp()
         self.attr.state = TaskState.AWAITING_START
-        self.attr.assignees = ', '.join(self.assignees)
         self.attr.task_id = self.db.insert("tasks", self.as_dict())
-        if self.assignees:
-            id_list = self.db.username_to_id(user_list=self.assignees)
-        for username in self.assignees:
-            log_row['tg_id'] = id_list[username]
+        for uid in self.ass_uids:
+            log_row['tg_id'] = uid
             log_row['task_id'] = self.attr.task_id
             self.db.insert("logger_table", log_row)
 
@@ -89,7 +87,6 @@ class Task:
 
 
     def delete(self, tid, uid):
-        logging.info(f'delete(): {tid}')
         if not self.db.get_table_column("tasks", "task_id", {'task_id': tid}):
             return 0
         if User().is_admin(uid) or uid == self.get_creator(tid):
@@ -110,6 +107,8 @@ class Task:
             return self.db.get_table_size("tasks")
         elif order == SortType.COMMON:
             return self.db.get_table_size("tasks", {'common': 1})
+        elif order == SortType.SETTER:
+            return self.db.get_table_size("tasks", {'creator': uid})
         else:
             raise ValueError("Wrong SortType")
 
@@ -146,18 +145,16 @@ class Task:
         status = ''
         delta = self.attr.deadline - datetime.now()
         common = datetime.fromtimestamp(0)
-        if self.attr.deadline == common:
-            logging.info(self.attr.state)
         if self.attr.state == TaskState.DONE:
             return status_dict['done']
         elif self.attr.state == TaskState.AWAITING_SUBMIT:
             return status_dict['submit']
-        elif self.attr.state ==  TaskState.IN_PROCESS or self.attr.state == TaskState.AWAITING_START:
+        else:
             if self.attr.deadline != common and delta <= timedelta(days=0):
                 return f"{status_dict['late']} {self.calc_delta(delta)}"
             elif self.attr.deadline != common and delta < timedelta(days=2):
                 return f"{status_dict['hurry']} {self.calc_delta(delta)}"
-            elif self.attr.deadline != common or self.attr.state==TaskState.IN_PROCESS:
+            elif self.attr.state==TaskState.IN_PROCESS:
                 return f"{status_dict['proc']} {self.calc_delta(delta)}"
             else:
                 return f"{status_dict['wait']} {self.calc_delta(delta)}"
@@ -170,7 +167,6 @@ class Task:
         if self.attr.deadline != datetime.fromtimestamp(0):
             deadline = self.attr.deadline.strftime(TIMEFORMAT)
         if self.assignees:
-            logging.info(self.assignees)
             assignees_list = User().id_to_username(uid_list=self.assignees)
             for i in range(0, len(assignees_list)):
                 assignees_list[i] = f'@{assignees_list[i]}'
@@ -181,7 +177,7 @@ class Task:
         f"📝<b>Описание</b>: {self.attr.body}\n\n"\
         f"🥷🥷@{creator}  ⏩  {assignees}\n\n"\
         f"<b>Дата создания:</b> {self.attr.createdtime.strftime(TIMEFORMAT)}\n\n"\
-        f"<pre>                                &#x200D</pre>"
+        f'<pre>                                                    &#x200D</pre>'
         return s
 
 

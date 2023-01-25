@@ -15,3 +15,4 @@ class SortType(Enum):
     DONE_FIRST = 2
     DONE_LAST = 3
     COMMON = 4
+    SETTER = 5

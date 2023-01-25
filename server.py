@@ -13,9 +13,11 @@ import asyncio
 from task_queue import NewTaskQueue as TaskQueue
 from user import User
 from task import Task
-from enums import SortType, TIMEFORMAT, TaskState
-from keys import cmdkey
+from enums import SortType, TIMEFORMAT
+from enums import TaskState as TS
+from keys import cmdkey, inline
 from deluser_queue import DeluserRow
+from cquery import Cquery
 
 
 @dataclass
@@ -58,36 +60,14 @@ async def show_task(tid):
     task = Task(tid)
     task.load_from_db()
     return task.show()
-    
-
-async def get_info_from_inline(callback):
-    info = callback.message.reply_markup.inline_keyboard
-    button_words = []
-    for elem in info:
-        if len(elem)==3:
-            button_words =  elem[1]['text'].split(' ')
-            break
-    button_words[0] = button_words[0].split('/')[0]
-    return_dict = {'offset': int(button_words[0]), 'username': '', 'order': SortType.CREATION }
-    if (len(button_words) > 1):
-        if button_words[1][1:-1] == 'общ':
-            return_dict['order'] = SortType.COMMON
-        else:
-            return_dict['username'] = button_words[1][1:-1]
-            return_dict['order'] = SortType.DEADLINE
-    return return_dict
 
 
-async def get_callback_info(callback: types.CallbackQuery):
-    info = CalbInfo()
-    info.uid = callback.from_user.id
-    info.mes_id = callback.message.message_id
-    dic= await get_info_from_inline(callback)
-    info.offset, info.username, info.order = dic['offset'], dic['username'], dic['order']
-    info.tid = int(re.sub("[a-zA-Z_]+_", "", callback.data))
-    if info.tid:
-        info.task = await show_task(info.tid)
-    return info
+async def get_callback_text(callback):
+    rmarkup = callback.message.reply_markup.inline_keyboard
+    for row in rmarkup:
+        for col in row:
+            if col.callback_data == callback.data:
+                return col.text
 
 
 async def send_long(text, message, new_markup=""):
@@ -100,18 +80,13 @@ async def send_long(text, message, new_markup=""):
 
 async def print_editing_task(message, task: Task):
     deadline = ''
-    assignees = []
     if task.attr.deadline:
         deadline = datetime.fromtimestamp(task.attr.deadline).strftime(TIMEFORMAT)
-    if task.assignees:
-        for i in range(0, len(task.assignees)):
-            assignees.append(f'@{task.assignees[i]}')
-
     t = f"<b>Название</b>: {task.attr.header}\n\n"\
         f"<b>Описание</b>: {task.attr.body}\n\n"\
-        f"<b>Ответственные</b>: {', '.join(assignees)}\n\n"\
+        f"<b>Ответственные</b>: {', '.join(task.ass_usernames)}\n\n"\
         f"<b>Дедлайн</b>: {deadline}"
-    t = f'<i>Задача обновлена</i>{t}'
+    t = f'<i>Задача обновлена</i>\n{t}'
     await Form.newtask.set()
     try:
         await bot.delete_message(message.from_user.id, message.message_id)
@@ -135,51 +110,54 @@ async def send_welcome(message: types.Message):
 
 
 
-@dp.callback_query_handler(Text(startswith='btn_state'), state=Form.newtask)
-@dp.callback_query_handler(Text(startswith='btn_state'), state=Form.admin)
-@dp.callback_query_handler(Text(startswith='btn_state'), state=Form.default)
+@dp.callback_query_handler(Text(startswith=inline['state']), state=Form.newtask)
+@dp.callback_query_handler(Text(startswith=inline['state']), state=Form.admin)
+@dp.callback_query_handler(Text(startswith=inline['state']), state=Form.default)
 async def accept_task(callback: types.CallbackQuery):
-    i = await get_callback_info(callback)
-    call = callback.data
-    if call.startswith('btn_state_start') or call.startswith('btn_state_return'):
-        Task().set_task_state(i.tid, TaskState.IN_PROCESS)
-    elif call.startswith('btn_state_complete'):
-        Task().set_task_state(i.tid, TaskState.AWAITING_SUBMIT)
-    else:
-        Task().set_task_state(i.tid, TaskState.DONE)
-    i.task = await show_task(i.tid)
-    key = Kb.tasklist_inline(i.uid, i.tid, i.offset, i.username, i.order)
-    await bot.edit_message_text(i.task, i.uid, i.mes_id, reply_markup = key)
+    cquery = Cquery()
+    cq = cquery.decodecq(callback.data)
+    uid = callback.from_user.id
+    mid = callback.message.message_id
+    Task().set_task_state(cq['tid'], TS(cq['state']))
+    text = await show_task(cq['tid'])
+    key = Kb.tasklist_inline(uid, cq['tid'], cq['offset'], cq['owneruid'], cq['order'])
+    await bot.edit_message_text(text, uid, mid, reply_markup = key)
 
 
-@dp.callback_query_handler(Text(startswith='task_btn_shift'), state=Form.newtask)
-@dp.callback_query_handler(Text(startswith='task_btn_shift'), state=Form.default)
-@dp.callback_query_handler(Text(startswith='task_btn_shift'), state=Form.admin)
+@dp.callback_query_handler(Text(startswith=inline['shift']), state=Form.newtask)
+@dp.callback_query_handler(Text(startswith=inline['shift']), state=Form.default)
+@dp.callback_query_handler(Text(startswith=inline['shift']), state=Form.admin)
 async def show_task_shift(callback: types.CallbackQuery):
-    i = await get_callback_info(callback)
-    offset = i.offset + (1 if ('forward' in callback.data) else -1)
-    key = Kb.tasklist_inline(i.uid, i.tid, offset, i.username, i.order)
+    cquery = Cquery()
+    cq = cquery.decodecq(callback.data)
+    uid = callback.from_user.id
+    mid = callback.message.message_id
+    offset = cq['offset'] + cq['dir']
+    key = Kb.tasklist_inline(uid, cq['tid'], offset, cq['owneruid'], cq['order'])
     try:
-        await bot.edit_message_reply_markup(i.uid, i.mes_id, reply_markup = key)
+        await bot.edit_message_reply_markup(uid, mid, reply_markup = key)
     except MessageNotModified:
         pass
 
 
-@dp.callback_query_handler(Text(startswith='task_btn_show'), state=Form.newtask)
-@dp.callback_query_handler(Text(startswith='task_btn_show'), state=Form.default)
-@dp.callback_query_handler(Text(startswith='task_btn_show'), state=Form.admin)
+@dp.callback_query_handler(Text(startswith=inline['show']), state=Form.newtask)
+@dp.callback_query_handler(Text(startswith=inline['show']), state=Form.default)
+@dp.callback_query_handler(Text(startswith=inline['show']), state=Form.admin)
 async def task_button_show(callback: types.CallbackQuery):
-    i = await get_callback_info(callback)
-    key = Kb.tasklist_inline(i.uid, i.tid, i.offset, i.username, i.order)
-    i.task = await show_task(i.tid)
+    cquery = Cquery()
+    cq = cquery.decodecq(callback.data)
+    uid = callback.from_user.id
+    mid = callback.message.message_id
+    key = Kb.tasklist_inline(uid, cq['btntid'], cq['offset'],cq['owneruid'], cq['order'])
+    task = await show_task(cq['btntid'])
     try:
-        await bot.edit_message_text(i.task, i.uid, i.mes_id, reply_markup = key)
+        await bot.edit_message_text(task, uid, mid, reply_markup = key)
     except MessageNotModified:
-        if i.username:
-            stats = User().show_stats(i.username)
+        if cq['owneruid']:
+            stats = User().show_stats(cq['owneruid'])
         else:
             stats = User().show_stats()
-        await bot.edit_message_text(stats, i.uid, i.mes_id, reply_markup = key)
+        await bot.edit_message_text(stats, uid, mid, reply_markup = key)
 
 
 @dp.message_handler(Text(equals=cmdkey['all'], ignore_case=True), state=Form.default)
@@ -191,18 +169,14 @@ async def print_all_tasks(message: types.Message):
     await message.answer(stats, reply_markup=key)
 
 
-@dp.callback_query_handler(Text(startswith='my_tasks'), state=Form.default)
+@dp.callback_query_handler(Text(startswith=inline['mytask']), state=Form.default)
 async def print_my_tasks(callback: types.CallbackQuery):
     uid = callback.from_user.id
     mid = callback.message.message_id
-    username = callback.from_user.username
-    query = callback.data.replace('my_tasks_', '')
-    logging.info(query)
-    if query == 'maker':
-        key = Kb.tasklist_inline(uid, username=username, order=SortType.DEADLINE)
-        stats = User().show_stats(username)
-    else:
-        pass
+    cquery = Cquery()
+    cq = cquery.decodecq(callback.data)
+    key = Kb.tasklist_inline(uid, owner_uid=uid, order=cq['order'])
+    stats = User().show_stats(uid)
     await bot.delete_message(uid, mid)
     await bot.send_message(uid, stats, reply_markup=key)
 
@@ -219,26 +193,27 @@ async def print_my_tasks(message: types.Message):
 async def print_common_tasks(message: types.Message):
     s = "Общие задачи:\n<pre>                                &#x200D</pre>"
     await Form.default.set()
-    key = Kb.tasklist_inline(message.from_user.id, order=SortType.COMMON)
+    key = Kb.tasklist_inline(message.from_user.id, order=SortType.COMMON.value)
     await bot.delete_message(message.from_user.id, message.message_id)
     await message.answer('Общие задачи:', reply_markup=key)
 
 
-@dp.callback_query_handler(Text(startswith='otherstasks_assignees_'), state=Form.default)
+@dp.callback_query_handler(Text(startswith=inline['other']), state=Form.default)
 async def others_tasks(callback: types.CallbackQuery):
     uid = callback.from_user.id
     mid = callback.message.message_id
-    username = callback.data.replace('otherstasks_assignees_@', '')
-    key = Kb.tasklist_inline(uid, username=username, order=SortType.DEADLINE)
-    stats = User().show_stats(username)
+    cquery = Cquery()
+    cq = cquery.decodecq(callback.data)
+    logging.info(cq)
+    key = Kb.tasklist_inline(uid, owner_uid = cq['userid'], order = SortType.DEADLINE.value)
+    stats = User().show_stats(cq['userid'])
     await bot.edit_message_text(stats, uid, mid, reply_markup=key)
-
 
 
 @dp.message_handler(Text(equals=cmdkey['others'], ignore_case=True), state=Form.default)
 async def others_tasks_button(message: types.Message):
     await bot.delete_message(message.from_user.id, message.message_id)
-    key = Kb.assignees_inline('otherstasks')
+    key = Kb.assignees_inline(inline['other'])
     await message.answer(f"{cmdkey['others'][0]}Выберите пользователя", reply_markup=key)
 
 
@@ -270,30 +245,36 @@ async def new_task_deadline(message: types.Message):
     await print_editing_task(message, task)
 
 
-@dp.callback_query_handler(Text(startswith='new_task_assignees_'), state=Form.newtask)
+@dp.callback_query_handler(Text(startswith=inline['new_task_l']), state=Form.newtask)
 async def new_task_assignees(callback: types.CallbackQuery):
     uid = callback.from_user.id
     mid = callback.message.message_id
     task = Tqueue.getTask(uid)
-    user = callback.data.replace('new_task_assignees_@', '')
-    if user != 'new_task_assignees_save':
-        if user not in task.assignees:
-            task.assignees.append(user)
+    cquery = Cquery()
+    cq = cquery.decodecq(callback.data)
+    user = cq['userid']
+    username = await get_callback_text(callback)
+    if user:
+        if username not in task.ass_usernames:
+            task.ass_usernames.append(username)
+            task.ass_uids.append(user)
         else:
-            task.assignees.remove(user)
-        s = f" {', '.join(task.assignees)}".replace(' ', ' @')
+            task.ass_usernames.remove(username)
+            task.ass_uids.remove(user)
+        s = f" {', '.join(task.ass_usernames)}"
         text = 'Выбери ответственных:\n\n' + s
-        await bot.edit_message_text(text, uid, mid, reply_markup=Kb.assignees_inline('new_task'))
+        key = Kb.assignees_inline(inline['new_task_l'], True)
+        await bot.edit_message_text(text,uid,mid,reply_markup=key)
     else:
         await print_editing_task(callback, task=task)
 
 
-@dp.callback_query_handler(Text(startswith='add_task'), state='*')
+@dp.callback_query_handler(Text(startswith=inline['addtask']), state=Form.newtask)
 async def new_task_buttons(callback: types.CallbackQuery):
     global Tqueue
     uid = callback.from_user.id
     mid = callback.message.message_id
-    query = callback.data.replace('add_task_', '')
+    query = callback.data.replace(f'{inline["addtask"]}_', '')
     if query == 'header':
         await Form.add_task_header.set()
         await bot.edit_message_text("Укажи название задачи:", uid, mid, reply_markup=None)
@@ -302,7 +283,8 @@ async def new_task_buttons(callback: types.CallbackQuery):
         await bot.edit_message_text("Укажи описание задачи:", uid, mid, reply_markup=None)
     if query == 'assignees':
         s = 'Выбери ответственных:'
-        await bot.edit_message_text(s, uid, mid, reply_markup=Kb.assignees_inline('new_task'))
+        key = Kb.assignees_inline(inline['new_task_l'], True)
+        await bot.edit_message_text(s, uid, mid, reply_markup=key)
     if query == 'deadline':
         s = 'Укажи дедлайн в формате [дд.мм.ггг]:\n\n<i>Пример: 22.02.1942</i>'
         await bot.edit_message_text(s, uid, mid, reply_markup=None)
@@ -347,13 +329,14 @@ async def delete_task(message: types.Message):
         await message.answer("Неверный ввод. Укажите номер задачи числом. Пример: 12")
 
 
-@dp.callback_query_handler(Text(startswith='ch_admins'), state=Form.usr_list_perm)
+@dp.callback_query_handler(Text(startswith=inline['chadmin']), state=Form.usr_list_perm)
 async def change_admins(callback: types.CallbackQuery):
-    info = callback.data.replace('ch_admins_', '').split('_')
     uid = callback.from_user.id
     mid = callback.message.message_id
-    if info[0] != 'save':
-        User().make_admin(int(info[0]), not int(info[1]))
+    cquery = Cquery()
+    cq = cquery.decodecq(callback.data)
+    if cq['userid']:
+        User().make_admin(cq['userid'] , not cq['is_admin'])
         await bot.edit_message_reply_markup(uid, mid, reply_markup=Kb.adminlist())
     else:
         await Form.admin.set()
@@ -361,23 +344,22 @@ async def change_admins(callback: types.CallbackQuery):
         await bot.edit_message_text(cmdkey['settings'], uid, mid, reply_markup=key)
         
 
-@dp.callback_query_handler(Text(startswith='deluser'), state=Form.deluser)
+@dp.callback_query_handler(Text(startswith=inline['del']), state=Form.deluser)
 async def deluser(callback: types.CallbackQuery):
     uid = callback.from_user.id
     mid = callback.message.message_id
-    info = callback.data.replace('deluser_assignees_@', '')
-    logging.info(Delqueue.row)
-    if info != 'deluser_assignees_save':
-        dellist = Delqueue.add(uid, info)
-        s = f"Вы собираетесь удалить:\n {', '.join(dellist)}".replace(' ', ' @')
-        await bot.edit_message_text(s, uid, mid, reply_markup=Kb.assignees_inline('deluser'))
+    cq = Cquery().decodecq(callback.data)
+    user = cq['userid']
+    username = await get_callback_text(callback)
+    if user:
+        dellist = Delqueue.add(uid, username)
+        s = f"Вы собираетесь удалить:\n {', '.join(dellist)}"
+        key = Kb.assignees_inline(inline['del'], True)
+        await bot.edit_message_text(s, uid, mid, reply_markup=key)
     else:
         User().del_users(Delqueue.pop(uid))
         await Form.admin.set()
         await bot.edit_message_text(cmdkey['settings'], uid, mid, reply_markup=Kb.admin_set_kb)
-
-
-
 
 
 @dp.callback_query_handler(Text(startswith='settings'), state=Form.admin)
@@ -400,7 +382,8 @@ async def handle_settings(callback: types.CallbackQuery):
     elif query == 'deluser':
         s = f'Выберите пользователей, которых хотите удалить:'
         await Form.deluser.set()
-        await bot.edit_message_text(s, uid, mid, reply_markup=Kb.assignees_inline('deluser'))
+        key = Kb.assignees_inline(inline['del'], False)
+        await bot.edit_message_text(s, uid, mid, reply_markup=key)
     elif query == 'back':
         await bot.delete_message(uid, mid)
         await Form.default.set()
@@ -422,5 +405,4 @@ async def advanced_markup(message: types.Message):
 if __name__ == '__main__':
     #loop = asyncio.get_event_loop()
     #loop.create_task(alarm())
-    Form.default.set()
     executor.start_polling(dp, skip_updates=True)

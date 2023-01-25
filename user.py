@@ -96,6 +96,9 @@ class User:
                 user_list[i] = f'@{user_list[i]}'
         return user_list
 
+    def userlist(self):
+        return self.db.get_table_rows("usr", ['id', 'username'], {'blacklist': False})
+
 
     def idlist(self):
         l = self.db.get_table_column("usr", 'id', {'blacklist': False})
@@ -116,18 +119,17 @@ class User:
         return d
 
 
-    def show_stats(self, username=''):
-        if username:
-            uid = self.username_to_id(username)
+    def show_stats(self, uid=0):
+        if uid:
+            username = self.id_to_username(uid)
             s = f'<b>🥷@{username}:</b>\n'
         else:
-            uid = 0
             s = f'🧕🐒🥷🤦👷\n'\
 
         s+= f'<i>Актуальных задач:</i> {self.db.count_active(uid)}\n'\
             f'<i>Принято в работу:</i> {self.db.count_inproc(uid)}\n'\
             f'<i>Всего выполнено:</i> {self.db.count_done(uid)}/{self.db.user_stats()}'\
-            f'<pre>                         &#x200D</pre>'
+            f'<pre>                                                    &#x200D</pre>'
         return s
 
 

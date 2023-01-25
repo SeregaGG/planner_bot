@@ -1,11 +1,13 @@
 from aiogram.types.reply_keyboard import ReplyKeyboardMarkup as RKM
 from aiogram.types.inline_keyboard import InlineKeyboardMarkup as IKM
 from aiogram.types.inline_keyboard import  InlineKeyboardButton as IK
-from enums import TaskState, SortType
+from enums import SortType
+from enums import TaskState as TS
 from task import Task
 from user import User
-from keys import cmdkey
+from keys import cmdkey, inline
 import logging
+from cquery import Cquery
 
 
 class Keyboard:
@@ -26,7 +28,7 @@ class Keyboard:
 
 
     def stngs(self, user):
-            return self.admin_set_kb
+        return self.admin_set_kb
 
 
     def newtask(self):
@@ -61,15 +63,16 @@ class Keyboard:
         Ak.row(back)
         return Ak
 
+
     def new_task_inline(self):
         '''Creating Inline keyboard for adding task command'''
         AddTasksKb = IKM(resize_keyboard=True)
-        btn1 = IK('Название', callback_data='add_task_header')
-        btn2 = IK('Описание', callback_data='add_task_body')
-        btn3 = IK('Ответственные', callback_data='add_task_assignees')
-        btn4 = IK('Дедлайн', callback_data='add_task_deadline')
-        btn5 = IK('Назад', callback_data='add_task_back')
-        btn6 = IK('Сохранить', callback_data='add_task_save')
+        btn1 = IK('Название', callback_data=f'{inline["addtask"]}_header')
+        btn2 = IK('Описание', callback_data=f'{inline["addtask"]}_body')
+        btn3 = IK('Ответственные', callback_data=f'{inline["addtask"]}_assignees')
+        btn4 = IK('Дедлайн', callback_data=f'{inline["addtask"]}_deadline')
+        btn5 = IK('Назад', callback_data=f'{inline["addtask"]}_back')
+        btn6 = IK('Сохранить', callback_data=f'{inline["addtask"]}_save')
         AddTasksKb.row(btn1, btn2)
         AddTasksKb.row(btn3, btn4)
         AddTasksKb.row(btn5, btn6)
@@ -82,133 +85,124 @@ class Keyboard:
         return MBack
 
     def adminlist(self):
-        kboard = IKM()
-        admins = User().adminlist()
-        row = []
-        for i, a in enumerate(admins, 0):
-            callback = f"ch_admins_{a['id']}_{a['admin']}"
-            if a['admin']:
-                text = f"🌚@{a['username']}"
-            else:
-                text = f"@{a['username']}"
-            row.append(IK(text, callback_data=callback))
-            if i>0 and i%2 == 0:
-                if len(row)>1:
-                    kboard.row(row[0], row[1])
-                else:
-                    kboard.row(row[0], IK(' ', callback_data='empty'))
-                row = []
-        kboard.row(IK(cmdkey['back'], callback_data='ch_admins_save'))
-        return kboard
-
-
-    def my_tasks_inline(self):
-        a = IK('Я - исполнитель', callback_data='my_tasks_maker')
-        b = IK('Я - постановщик', callback_data='my_tasks_setter')
-        return IKM().row(a, b)
-
-
-    def assignees_inline(self, command=''):
         kb = IKM()
-        usernames = User().usernamelist(mention=1)
-        for i in range(0, len(usernames), 2):
-            k1 = IK(usernames[i], callback_data=f'{command}_assignees_{usernames[i]}')
-            if i+1 < len(usernames):
-                k2 = IK(usernames[i+1], callback_data=f'{command}_assignees_{usernames[i+1]}')
+        a = User().adminlist()
+        for i in range(0, len(a), 2):
+            callback = Cquery({'userid': a[i]['id'], 'is_admin': a[i]['admin']}, inline['chadmin'])
+            text = f"🌚@{a[i]['username']}" if a[i]['admin'] else f"@{a[i]['username']}"
+            k1 = IK(text, callback_data=callback.generatecq())
+            if i+1 < len(a):
+                callback = Cquery({'userid': a[i+1]['id'], 'is_admin': a[i+1]['admin']}, 
+                                                                                inline['chadmin'])
+                text = f"🌚@{a[i+1]['username']}" if a[i+1]['admin'] else f"@{a[i+1]['username']}"
+                k2 = IK(text, callback_data=callback.generatecq())
             else:
                 k2 = IK(' ', callback_data=f'empty')
             kb.row(k1, k2)
-        kb.row(IK('Сохранить', callback_data = f'{command}_assignees_save'))
+        callback = Cquery({'userid': 0}, inline['chadmin'])
+        kb.row(IK(cmdkey['back'], callback_data=callback.generatecq()))
+        logging.info(kb)
+        return kb
+
+
+    def my_tasks_inline(self):
+        cq1 = Cquery({'order': SortType.DEADLINE.value}, inline['mytask'])
+        cq2 = Cquery({'order': SortType.SETTER.value}, inline['mytask'])
+        a = IK('Я - исполнитель', callback_data=cq1.generatecq())
+        b = IK('Я - постановщик', callback_data=cq2.generatecq())
+        return IKM().row(a, b)
+
+
+    def assignees_inline(self, cmd='', save_option = 0):
+        kb = IKM()
+        users = User().userlist()
+        for i in range(0, len(users), 2):
+            callback = Cquery({'userid': users[i]['id']}, cmd)
+            k1 = IK(f"@{users[i]['username']}", callback_data=callback.generatecq())
+            if i+1 < len(users):
+                callback = Cquery({'userid': users[i+1]['id']}, cmd)
+                k2 = IK(users[i+1]['username'], callback_data=callback.generatecq())
+            else:
+                k2 = IK(' ', callback_data=f'empty')
+            kb.row(k1, k2)
+        if save_option:
+            callback = Cquery({'userid': 0}, cmd)
+            kb.row(IK('Сохранить', callback_data = callback.generatecq()))
         return kb
         
         
-
-    def form_permission_choice(self, is_admin):
-        UsrEdit = RKM(resize_keyboard=True)
-        if is_admin:
-            choice = ReplyKeyboardButton('Снять админа', callback_data='Снять админа')
-            back = ReplyKeyboardButton('Назад', callback_data='Назад')
+    def form_menu(self,tasks_size, cq):
+        if cq['offset'] > 1:
+            cq['dir'] = -1
+            callback = Cquery(cq, inline['shift'])
+            back = IK('<', callback_data=callback.generatecq())
         else:
-            choice = ReplyKeyboardButton('Сделать админом', callback_data='Сделать админом')
-            back = ReplyKeyboardButton('Назад', callback_data='Назад')
-        UsrEdit.row(choice, back)
-        return UsrEdit
-
-
-    def form_menu(self, offset, tasks_size, username, tid):
-        ch = {'more': '>', 'less': '<', 'under': '_',
-            'ou': f'{offset}/{tasks_size//self.limit+1} ({username})',
-            'o': f'{offset}/{tasks_size//self.limit+1}'}
-        cb = {
-            'more': f'task_btn_shift_forward_{tid}',
-            'less': f'task_btn_shift_back_{tid}',
-            'under': 'btn_empty',
-            'ofbtn': 'task_btn_offset'
-        }
-        back = IK(ch['less'], callback_data=cb['less']) \
-            if offset>1 else IK(ch['under'], callback_data=cb['under'])
-        forward = IK(ch['more'], callback_data=cb['more']) \
-            if tasks_size-(offset*self.limit) > 0 else IK(ch['under'], callback_data=cb['under'])
-        count = IK(ch['ou'], callback_data=cb['ofbtn']) if username \
-            else IK(ch['o'], callback_data=cb['ofbtn'])
+            back = IK('_', callback_data='empty')
+        if tasks_size-(cq['offset']*self.limit) > 0:
+            cq['dir'] = 1
+            callback = Cquery(cq, inline['shift'])
+            forward = IK('>', callback_data=callback.generatecq())
+        else:
+            forward = IK('_', callback_data='empty')
+        count = IK(f"{cq['offset']}/{tasks_size//self.limit+1}", callback_data='empty')
         return back, forward, count
 
 
-    def form_tasks(self, TasksKb, order, uid, offset, tsize):
-        tasks = Task().task_headers(uid, self.limit, offset-1, order)
+    def form_tasks(self, TasksKb, tsize, cq):
+        tasks = Task().task_headers(cq['owneruid'], self.limit, cq['offset']-1, SortType(cq['order']))
         for header in tasks:
             T = Task()
             T.load_from_header(header)
             status = T.get_status()
             s = f"{status[0]}[#{T.attr.task_id}] {T.attr.header}"
-            TasksKb.row(IK(s, callback_data = f"task_btn_show_{T.attr.task_id}"))
+            cq['btntid'] = T.attr.task_id
+            callback = Cquery(cq, inline['show'])
+            TasksKb.row(IK(s, callback_data = callback.generatecq()))
         return TasksKb
 
 
-    def submit_button(self, uid, tid, TasksKb):
-        text = callback = text2 = callback2 = ''
+    def submit_button(self, uid, cq, TasksKb):
         user = User(uid)
-        task = Task(tid)
+        task = Task(cq['tid'])
         task.load_from_db()
         user.from_database()
-        logic1 =  user.is_assignee(tid) and task.attr.state == TaskState.IN_PROCESS
-        logic2 = uid == task.attr.creator and task.attr.state == TaskState.AWAITING_SUBMIT 
-        logic3 = user.is_assignee(tid) and task.attr.state == TaskState.AWAITING_START
-        logic4 = uid == task.attr.creator and task.attr.common == 1
+        logic1 =  user.is_assignee(cq['tid']) and task.attr.state == TS.IN_PROCESS
+        logic2 = uid == task.attr.creator and task.attr.state == TS.AWAITING_SUBMIT 
+        logic3 = user.is_assignee(cq['tid']) and task.attr.state == TS.AWAITING_START
+        logic4 = uid == task.attr.creator and task.attr.common == 1 and task.attr.state != TS.DONE
         if logic1: 
-            text = f'☑ Сдать задачу #{tid}'
-            callback = f'btn_state_complete_{tid}'
-            TasksKb.row(IK(text, callback_data=callback))
+            text = f"☑ Сдать задачу #{cq['tid']}"
+            cq['state'] = TS.AWAITING_SUBMIT.value
+            callback = Cquery(cq, inline['state'])
+            TasksKb.row(IK(text, callback_data=callback.generatecq()))
         elif logic2 or logic4:
-            text = f'✅Принять #{tid}'
-            callback = f'btn_state_accept_{tid}'
+            text = f'✅Принять #{cq["tid"]}'
+            cq['state'] = TS.DONE.value
+            callback = Cquery(cq, inline['state'])
+            gen1 = callback.generatecq()
             if logic2:
-                text2 = f'❌Вернуть #{tid}'
-                callback2 = f'btn_state_return_{tid}'
-                TasksKb.row(IK(text, callback_data=callback),IK(text2, callback_data=callback2))
+                text2 = f'❌Вернуть #{cq["tid"]}'
+                cq['state'] = TS.IN_PROCESS.value
+                callback = Cquery(cq, inline['state'])
+                gen2 = callback.generatecq()
+                TasksKb.row(IK(text, callback_data=gen1),IK(text2, callback_data=gen2))
             else:
-                TasksKb.row(IK(text, callback_data=callback))
+                TasksKb.row(IK(text, callback_data=gen1))
         elif logic3:
             text = f'🏋Приступить к задаче'
-            callback = f'btn_state_start_{tid}'
-            TasksKb.row(IK(text, callback_data=callback))
+            cq['state'] = TS.IN_PROCESS.value
+            callback = Cquery(cq, inline['state'])
+            TasksKb.row(IK(text, callback_data=callback.generatecq()))
 
 
-    def tasklist_inline(self, uid, tid=0, offset=1, username='', order=SortType.CREATION):
+    def tasklist_inline(self, uid, tid=0, offset=1, owner_uid=0, order=SortType.CREATION.value):
+        cq = {'offset': offset, 'owneruid': owner_uid, 'tid': tid, 'order': order}
         TasksKb = IKM()
-        tasks_size = Task().table_size(order, username=username)
-        if username:
-            others_username = User().username_to_id(username)
-            TasksKb = self.form_tasks(TasksKb, order, others_username, offset, tasks_size)
-        else:
-            TasksKb = self.form_tasks(TasksKb, order, uid, offset, tasks_size)
-            
-        if order == SortType.COMMON:
-            back, forward, count = self.form_menu(offset, tasks_size, 'общ', tid)
-        else:
-            back, forward, count = self.form_menu(offset, tasks_size, username, tid)
+        tasks_size = Task().table_size(SortType(order), uid=owner_uid)
+        TasksKb = self.form_tasks(TasksKb, tasks_size, cq)
+        back, forward, count = self.form_menu(tasks_size, cq)
         TasksKb.row(back, count, forward)
         if tid:
-            self.submit_button(uid, tid, TasksKb)
+            self.submit_button(uid, cq, TasksKb)
         return TasksKb
 

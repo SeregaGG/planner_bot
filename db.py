@@ -63,6 +63,8 @@ class Db():
             join=f" join logger_table on logger_table.task_id=tasks.task_id"\
                     f" where logger_table.tg_id={uid}"
             cmd += join
+        elif sort == SortType.SETTER:
+            cmd += f" where creator = {uid}"
         cmd += f" order by createdtime desc"
         cmd += f' limit {limit} offset {limit*offset}'
         self.cursor.execute(cmd)
@@ -135,6 +137,20 @@ class Db():
         if columns[0] != '*':
             for i in range(0, len(columns)):
                 response[columns[i]] = raw[0][i]
+        else:
+            return raw[0]
+        return response
+
+
+    def get_table_rows(self, table: str, columns: list, filtr: dict = {}, offset=0, limit=0):
+        raw = self.select_request(table, columns, filtr, offset, limit)
+        response = []
+        if columns[0] != '*':
+            for j in range(0, len(raw)):
+                res_dict = {}
+                for i in range(0, len(columns)):
+                    res_dict[columns[i]] = raw[j][i]
+                response.append(res_dict)
         else:
             return raw[0]
         return response
