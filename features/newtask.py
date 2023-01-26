@@ -6,6 +6,7 @@ from temp.task_queue import NewTaskQueue as TaskQueue
 from datetime import datetime
 from classes.cquery import Cquery
 from classes.task import Task
+from classes.user import User
 from aiogram.dispatcher.filters import Text
 
 

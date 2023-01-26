@@ -5,6 +5,9 @@ from constants.keys import cmdkey, inline
 from temp.deluser_queue import DeluserRow
 from classes.cquery import Cquery
 from classes.user import User
+from classes.task import Task
+from middlewares import AccessMiddleware
+import logging
 import re
 
 
@@ -65,9 +68,12 @@ async def deluser(callback: types.CallbackQuery):
         key = Kb.assignees_inline(inline['del'], True)
         await bot.edit_message_text(s, uid, mid, reply_markup=key)
     else:
-        User().del_users(Delqueue.pop(uid))
+        d = Delqueue.pop(uid)
+        User().del_users(d)
+        dp.middleware.setup(AccessMiddleware(User().idlist()))
         await Form.admin.set()
-        await bot.edit_message_text(cmdkey['settings'], uid, mid, reply_markup=Kb.admin_set_kb)
+        s = '<i>*Участник удалён*</i>\n'
+        await bot.edit_message_text(s+cmdkey['settings'], uid, mid, reply_markup=Kb.admin_set_kb)
 
 
 @dp.callback_query_handler(Text(startswith='settings'), state=Form.admin)
@@ -90,7 +96,7 @@ async def handle_settings(callback: types.CallbackQuery):
     elif query == 'deluser':
         s = f'Выберите пользователей, которых хотите удалить:'
         await Form.deluser.set()
-        key = Kb.assignees_inline(inline['del'], False)
+        key = Kb.assignees_inline(inline['del'], True)
         await bot.edit_message_text(s, uid, mid, reply_markup=key)
     elif query == 'back':
         await bot.delete_message(uid, mid)

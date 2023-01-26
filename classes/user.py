@@ -103,6 +103,7 @@ class User:
 
     def idlist(self):
         l = self.db.get_table_column("usr", 'id', {'blacklist': False})
+        logging.info(l)
         return l
 
 
@@ -145,4 +146,4 @@ class User:
         if not users:
             return
         for user in users:
-            self.db.update('usr', {'blacklist': 1},{'username': f"'{user}'"})
+            self.db.update('usr', {'blacklist': True},{'username': f"'{user}'"})

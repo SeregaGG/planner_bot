@@ -17,10 +17,8 @@ class Db():
             self.conn = sqlite3.connect(path, detect_types=detect_types)
         except Exception as e:
             raise sqlite3.OperationalError(e) 
-
         self.cursor = self.conn.cursor()
         self.check_db_exists()
-        logging.basicConfig(level=logging.INFO)
 
 
     def check_db_exists(self):

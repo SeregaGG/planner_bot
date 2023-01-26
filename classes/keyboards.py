@@ -119,13 +119,13 @@ class Keyboard:
             k1 = IK(f"@{users[i]['username']}", callback_data=callback.generatecq())
             if i+1 < len(users):
                 callback = Cquery({'userid': users[i+1]['id']}, cmd)
-                k2 = IK(users[i+1]['username'], callback_data=callback.generatecq())
+                k2 = IK(f"@{users[i+1]['username']}", callback_data=callback.generatecq())
             else:
                 k2 = IK(' ', callback_data=f'empty')
             kb.row(k1, k2)
         if save_option:
             callback = Cquery({'userid': 0}, cmd)
-            kb.row(IK('Сохранить', callback_data = callback.generatecq()))
+            kb.row(IK('Сохранить и выйти', callback_data = callback.generatecq()))
         return kb
         
         

@@ -6,7 +6,6 @@ from init import *
 from features import settings, newtask, tasklist_menu
 
 
-
 @dp.message_handler(state = '*', commands=['start'])
 async def send_welcome(message: types.Message):
     await Form.default.set()

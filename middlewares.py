@@ -13,11 +13,8 @@ class AccessMiddleware(BaseMiddleware):
         super().__init__()
 
     async def on_process_message(self, message: types.Message, _):
-        logging.info(self.access_ids)
-        logging.info(message.from_user.id)
         if message.from_user.id not in self.access_ids:
             logging.warning(f"{message.from_user.id} attempted to login")
-            '''
             mes = message.from_user
             column_values = {
                 'id': mes.id,
@@ -30,6 +27,5 @@ class AccessMiddleware(BaseMiddleware):
             }
             db().insert('unauthorized_access', column_values)
             raise CancelHandler()
-            '''
 
 
