@@ -181,10 +181,9 @@ class Task:
         return s
 
 
-    def set_task_state(self, tid, state):
+    def set_task_state(self, state, tid=0):
         if not tid:
             tid = self.attr.task_id
-            self.attr.state = TaskState.AWAITING_SUBMIT
         self.db.update("tasks", {'state': state.value}, {'task_id': tid})
 
 

@@ -4,11 +4,20 @@ from classes.task import Task
 from constants.keys import cmdkey, inline
 from init import *
 from features import settings, newtask, tasklist_menu
+import logging
+
+async def setup_bot_commands():
+    bot_commands = [
+        types.BotCommand(command="/start", description="Start Bot"),
+        types.BotCommand(command="/help", description="Get info about me"),
+    ]
+    await bot.set_my_commands(bot_commands)
 
 
 @dp.message_handler(state = '*', commands=['start'])
 async def send_welcome(message: types.Message):
     await Form.default.set()
+    await setup_bot_commands()
     new_user = User(message=message)
     new_user.to_database()
     s = f"Привет, {new_user.attr.first_name}&#128075!"\

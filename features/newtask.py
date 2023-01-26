@@ -8,6 +8,7 @@ from classes.cquery import Cquery
 from classes.task import Task
 from classes.user import User
 from aiogram.dispatcher.filters import Text
+from aiogram.utils.exceptions import ChatNotFound
 
 
 Tqueue = TaskQueue()
@@ -38,6 +39,15 @@ async def print_editing_task(message, task: Task):
         uid = message.from_user.id
         mid = message.message.message_id
         await bot.edit_message_text(t, uid, mid, reply_markup=Kb.newtask())
+
+
+async def notify_creation(task):
+    s = f'<b>У вас новая задача:</b>\n\n[#{task.attr.task_id}]: {task.attr.header}'
+    for ass in task.ass_uids:
+        try:
+            await bot.send_message(ass, s)
+        except ChatNotFound:
+            pass
 
 
 @dp.message_handler(state = Form.add_task_header)
@@ -117,6 +127,7 @@ async def new_task_buttons(callback: types.CallbackQuery):
         task = Tqueue.getTask(uid)
         if query == 'save':
             task.save_to_db()
+            await notify_creation(task)
             s = 'Задача сохранена'
         Tqueue.delTask(uid)
         await Form.default.set()

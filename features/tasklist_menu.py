@@ -1,12 +1,13 @@
 from init import bot, dp, Kb, Form
 from aiogram.dispatcher.filters import Text
-from aiogram.utils.exceptions import MessageNotModified
+from aiogram.utils.exceptions import MessageNotModified, ChatNotFound
 from aiogram import types
 from constants.keys import cmdkey, inline
 from constants.enums import SortType, TaskState as TS
 from classes.cquery import Cquery
 from classes.user import User
 from classes.task import Task
+import logging
 
 
 async def show_task(tid):
@@ -14,6 +15,31 @@ async def show_task(tid):
     task.load_from_db()
     return task.show()
 
+
+async def notify_users(task: Task, newstate):
+    logging.info([task.attr.state, newstate])
+    msg = f'<b>Задача #[{task.attr.task_id}]</b>: "{task.attr.header}":\n\n'\
+            f'Статус изменен:'
+    if newstate == TS.IN_PROCESS and task.attr.state == TS.AWAITING_START:
+        info = 'в работе'
+    if newstate == TS.IN_PROCESS and task.attr.state == TS.AWAITING_SUBMIT:
+        info = 'возвращено на доработку'
+    elif newstate == TS.AWAITING_SUBMIT:
+        info = 'ожидает вашего подтверждения'
+    elif newstate == TS.DONE:
+        info = 'задача принята'
+
+    msg = f'{msg} <b>{info}</b>'
+
+    if (newstate == TS.IN_PROCESS and task.attr.state == TS.AWAITING_SUBMIT) or newstate==TS.DONE:
+        for ass in task.assignees:
+            try:
+                await bot.send_message(ass, msg)
+            except ChatNotFound:
+                pass
+    else:
+        await bot.send_message(task.attr.creator, msg)
+        
 
 @dp.callback_query_handler(Text(startswith=inline['state']), state=Form.newtask)
 @dp.callback_query_handler(Text(startswith=inline['state']), state=Form.admin)
@@ -23,8 +49,13 @@ async def accept_task(callback: types.CallbackQuery):
     cq = cquery.decodecq(callback.data)
     uid = callback.from_user.id
     mid = callback.message.message_id
-    Task().set_task_state(cq['tid'], TS(cq['state']))
-    text = await show_task(cq['tid'])
+    task = Task(cq['tid'])
+    task.load_from_db()
+    newstate = TS(cq['state'])
+    await notify_users(task, newstate)
+    task.attr.state = newstate
+    task.set_task_state(newstate)
+    text = task.show()
     key = Kb.tasklist_inline(uid, cq['tid'], cq['offset'], cq['owneruid'], cq['order'])
     await bot.edit_message_text(text, uid, mid, reply_markup = key)
 

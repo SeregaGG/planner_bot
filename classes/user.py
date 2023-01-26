@@ -147,3 +147,5 @@ class User:
             return
         for user in users:
             self.db.update('usr', {'blacklist': True},{'username': f"'{user}'"})
+
+
