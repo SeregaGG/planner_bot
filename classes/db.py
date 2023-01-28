@@ -64,10 +64,10 @@ class Db():
         elif sort == SortType.SETTER:
             cmd += f" where creator = {uid}"
         cmd += f" order by createdtime desc"
-        cmd += f' limit {limit} offset {limit*offset}'
+        if limit:
+            cmd += f' limit {limit} offset {limit*offset}'
         self.cursor.execute(cmd)
         rows = self.cursor.fetchall()
-            
         result = []
         for row in rows:
             ans = {}
@@ -84,6 +84,7 @@ class Db():
         values = tuple(column_values.values())
         placeholders =','.join('?'*len(column_values.keys()))
         s = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
+        logging.info(s)
         self.cursor.execute(s, values)
         self.conn.commit()
         return self.cursor.lastrowid
@@ -213,24 +214,33 @@ class Db():
             s = f'{cmd}'
         self.cursor.execute(s)
         ans = self.cursor.fetchone()
+        logging.info(s)
         return ans[0]
 
 
-    def count_active(self, uid=''):
+    def count_active(self, uid='', order=SortType.CREATION):
         a_s = TaskState.AWAITING_START.value
         i_p = TaskState.IN_PROCESS.value
-        where = f'(tasks.state = {a_s} or tasks.state = {i_p})'
+        if order != SortType.SETTER:
+            where = f'(tasks.state = {a_s} or tasks.state = {i_p})'
+        else:
+            where = f'creator = {uid}'
+            uid = ''
         return self.user_stats(where, uid)
 
-    def count_inproc(self, uid=''):
+    def count_inproc(self, uid='', order=SortType.CREATION):
         i_p = TaskState.IN_PROCESS.value
         where = f'tasks.state = {i_p}'
+        if order == SortType.SETTER:
+            where += f' and creator="{uid}"'
         return self.user_stats(where, uid)
 
 
-    def count_done(self, uid=''):
+    def count_done(self, uid='', order=SortType.CREATION):
         d = TaskState.DONE.value
         where = f'tasks.state = {d}'
+        if order == SortType.SETTER:
+            where += f' and creator = {uid}'
         return self.user_stats(where, uid)
 
 
@@ -245,3 +255,4 @@ class Db():
 
     def blacklist(self):
         return self.get_table_column('usr', 'tg_id', {'blacklist': 1})
+

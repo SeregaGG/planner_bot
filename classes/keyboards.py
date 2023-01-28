@@ -12,55 +12,58 @@ from classes.cquery import Cquery
 class Keyboard:
     def __init__(self, limit=10):
         self.limit = limit
-        self.user_main_kb = self.user_main_kb()
-        self.admin_main_kb = self.admin_main_kb()
-        self.admin_set_kb = self.admin_settings_kb()
-        self.user_set_kb = None #todo
+        self.main = self.main_kb()
         self.new_task_inline = self.new_task_inline()
         self.my_tasks =  self.my_tasks_inline()
-
-
-    def main(self, user: User):
-        if (user.is_admin()):
-            return self.admin_main_kb
-        return self.user_main_kb
-
-
-    def stngs(self, user):
-        return self.admin_set_kb
 
 
     def newtask(self):
         return self.new_task_inline
 
 
-    def user_main_kb(self):
-        '''Reply keyboard for general user'''
-        Mk = RKM(resize_keyboard=True)
-        Mk.row(cmdkey['my'], cmdkey['all'], cmdkey['common'])
-        Mk.row(cmdkey['others'], cmdkey['create'], cmdkey['settings'])
-        return Mk
+    def register_kb(self):
+        k = IKM()
+        k.row(IK('Добавить меня', callback_data = 'register_submit'))
+        k.row(IK('Создать рабочее пр-во\n(админ)', callback_data = 'register_creat'))
+        return k
 
 
-    def admin_main_kb(self):
+    def main_kb(self):
         #Reply keyboard for admin
         Mk = RKM(resize_keyboard=True)
         Mk.row(cmdkey['my'], cmdkey['all'], cmdkey['common'])
         Mk.row(cmdkey['others'], cmdkey['create'], cmdkey['settings'])
         return Mk
 
-
-    def admin_settings_kb(self):
+    def admin_settings_kb(self, is_admin = 0):
         Ak = IKM()
         noti = IK('🔈Уведомления', callback_data='settings_notifications')
         delete = IK('🚫Удалить задачу', callback_data='settings_delete')
         admin = IK('🌚Админы', callback_data='settings_admins')
         back = IK('↩Назад', callback_data='settings_back')
         deluser = IK('👮Удалить участника', callback_data = 'settings_deluser')
-        Ak.row(noti, admin,)
-        Ak.row(deluser, delete)
-        Ak.row(back)
+        if is_admin:
+            Ak.row(noti, admin)
+            Ak.row(deluser, delete)
+            Ak.row(back)
+        else:
+            Ak.row(noti, back)
         return Ak
+
+
+
+
+    def notification_menu(self, fy):
+        Kb = IKM()
+        emo = '🌚'
+        week = emo + 'За неделю' if fy.week else 'За неделю'
+        day2 = emo+'За 2 дня' if fy.day2 else 'За 2 дня'
+        day = emo+'За день' if fy.day else 'За день'
+        Kb.row(IK(week, callback_data='notifi_week' ))
+        Kb.row(IK(day2, callback_data='notifi_2'))
+        Kb.row(IK(day, callback_data = 'notifi_1'))
+        Kb.row(IK('Сохранить и выйти', callback_data = 'notifi_back'))
+        return Kb
 
 
     def new_task_inline(self):
@@ -106,8 +109,8 @@ class Keyboard:
     def my_tasks_inline(self):
         cq1 = Cquery({'order': SortType.DEADLINE.value}, inline['mytask'])
         cq2 = Cquery({'order': SortType.SETTER.value}, inline['mytask'])
-        a = IK('Я - исполнитель', callback_data=cq1.generatecq())
-        b = IK('Я - постановщик', callback_data=cq2.generatecq())
+        a = IK('⛏Я - исполнитель', callback_data=cq1.generatecq())
+        b = IK('🧠Я - постановщик', callback_data=cq2.generatecq())
         return IKM().row(a, b)
 
 
@@ -142,7 +145,8 @@ class Keyboard:
             forward = IK('>', callback_data=callback.generatecq())
         else:
             forward = IK('_', callback_data='empty')
-        count = IK(f"{cq['offset']}/{tasks_size//self.limit+1}", callback_data='empty')
+        pogr = tasks_size % self.limit !=0
+        count = IK(f"{cq['offset']}/{tasks_size//self.limit + pogr}", callback_data='empty')
         return back, forward, count
 
 

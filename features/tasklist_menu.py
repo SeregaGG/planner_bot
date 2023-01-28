@@ -7,6 +7,8 @@ from constants.enums import SortType, TaskState as TS
 from classes.cquery import Cquery
 from classes.user import User
 from classes.task import Task
+from classes.alarm import Alarm
+from custom_filters.chat_type import IsPrivateChat
 import logging
 
 
@@ -17,7 +19,6 @@ async def show_task(tid):
 
 
 async def notify_users(task: Task, newstate):
-    logging.info([task.attr.state, newstate])
     msg = f'<b>Задача #[{task.attr.task_id}]</b>: "{task.attr.header}":\n\n'\
             f'Статус изменен:'
     if newstate == TS.IN_PROCESS and task.attr.state == TS.AWAITING_START:
@@ -32,7 +33,7 @@ async def notify_users(task: Task, newstate):
     msg = f'{msg} <b>{info}</b>'
 
     if (newstate == TS.IN_PROCESS and task.attr.state == TS.AWAITING_SUBMIT) or newstate==TS.DONE:
-        for ass in task.assignees:
+        for ass in task.ass_uids:
             try:
                 await bot.send_message(ass, msg)
             except ChatNotFound:
@@ -53,6 +54,9 @@ async def accept_task(callback: types.CallbackQuery):
     task.load_from_db()
     newstate = TS(cq['state'])
     await notify_users(task, newstate)
+    if newstate == TS.DONE:
+        alarm = Alarm(uid)
+        alarm.delete_alarms(task)
     task.attr.state = newstate
     task.set_task_state(newstate)
     text = task.show()
@@ -84,21 +88,23 @@ async def task_button_show(callback: types.CallbackQuery):
     cq = cquery.decodecq(callback.data)
     uid = callback.from_user.id
     mid = callback.message.message_id
-    key = Kb.tasklist_inline(uid, cq['btntid'], cq['offset'],cq['owneruid'], cq['order'])
+    if cq['tid'] == cq['btntid']:
+        key = Kb.tasklist_inline(uid, 0, cq['offset'],cq['owneruid'], cq['order'])
+    else:
+        key = Kb.tasklist_inline(uid, cq['btntid'], cq['offset'],cq['owneruid'], cq['order'])
     task = await show_task(cq['btntid'])
-    try:
-        await bot.edit_message_text(task, uid, mid, reply_markup = key)
-    except MessageNotModified:
+    if cq['tid'] == cq['btntid']:
+        cq['tid'] = 0
         if cq['owneruid']:
-            stats = User().show_stats(cq['owneruid'])
+            stats = User().show_stats(cq['owneruid'], cq['order'])
         else:
             stats = User().show_stats()
         await bot.edit_message_text(stats, uid, mid, reply_markup = key)
+    else:
+        await bot.edit_message_text(task, uid, mid, reply_markup = key)
 
-
-@dp.message_handler(Text(equals=cmdkey['all'], ignore_case=True), state=Form.default)
+@dp.message_handler(IsPrivateChat(), Text(equals=cmdkey['all']), state=Form.default)
 async def print_all_tasks(message: types.Message):
-    await Form.default.set()
     key = Kb.tasklist_inline(message.from_user.id)
     stats = User().show_stats()
     await bot.delete_message(message.from_user.id, message.message_id)
@@ -112,23 +118,22 @@ async def print_my_tasks(callback: types.CallbackQuery):
     cquery = Cquery()
     cq = cquery.decodecq(callback.data)
     key = Kb.tasklist_inline(uid, owner_uid=uid, order=cq['order'])
-    stats = User().show_stats(uid)
+    stats = User().show_stats(uid, SortType(cq['order']))
     await bot.delete_message(uid, mid)
     await bot.send_message(uid, stats, reply_markup=key)
 
 
-@dp.message_handler(Text(equals=cmdkey['my'], ignore_case=True), state=Form.default)
+@dp.message_handler(IsPrivateChat(), Text(equals=cmdkey['my']), state=Form.default)
 async def print_my_tasks(message: types.Message):
     uid = message.from_user.id
     username = message.from_user.username
     await bot.delete_message(message.from_user.id, message.message_id)
-    await message.answer('Выбери тип задач', reply_markup=Kb.my_tasks)
+    await message.answer(f'{cmdkey["my"][0]}Выбери тип задач', reply_markup=Kb.my_tasks)
 
 
-@dp.message_handler(Text(equals=cmdkey['common'], ignore_case=True), state=Form.default)
+@dp.message_handler(IsPrivateChat(), Text(equals=cmdkey['common']), state=Form.default)
 async def print_common_tasks(message: types.Message):
     s = "Общие задачи:\n<pre>                                &#x200D</pre>"
-    await Form.default.set()
     key = Kb.tasklist_inline(message.from_user.id, order=SortType.COMMON.value)
     await bot.delete_message(message.from_user.id, message.message_id)
     await message.answer('Общие задачи:', reply_markup=key)
@@ -145,7 +150,7 @@ async def others_tasks(callback: types.CallbackQuery):
     await bot.edit_message_text(stats, uid, mid, reply_markup=key)
 
 
-@dp.message_handler(Text(equals=cmdkey['others'], ignore_case=True), state=Form.default)
+@dp.message_handler(IsPrivateChat(), Text(equals=cmdkey['others']), state=Form.default)
 async def others_tasks_button(message: types.Message):
     await bot.delete_message(message.from_user.id, message.message_id)
     key = Kb.assignees_inline(inline['other'])

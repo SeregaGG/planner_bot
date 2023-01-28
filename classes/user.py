@@ -2,6 +2,7 @@ from datetime import datetime
 from classes.db import Db
 from aiogram.types import Message
 import logging
+from constants.enums import SortType
 import os
 
 
@@ -13,23 +14,23 @@ class DbAttr:
         self.is_bot = None
         self.username = None
         self.admin = None
+        self.blacklist = None
 
 
 class User:
 
-    def __init__(self, uid = None, username = None, message: Message = None):
+    def __init__(self, uid = None, username = None, from_user = None):
         self.db = Db()
         self.attr = DbAttr()
         self.tasks = []
-        if message:
-            self.from_message(message)
+        if from_user:
+            self.from_message(from_user)
         else:
             self.attr.id = uid
             self.attr.username = username
 
 
-    def from_message(self, message: Message):
-        mes = message.from_user
+    def from_message(self, mes):
         self.attr.id = mes.id
         self.attr.username = mes.username
         self.attr.first_name = mes.first_name
@@ -56,10 +57,11 @@ class User:
 
 
     def to_database(self):
-        if self.attr.id in self.idlist():
+        if self.attr.id in self.idlist(1):
             self.db.update("usr", self.as_dict(), {'id':self.attr.id})
         else:
             self.db.insert("usr", self.as_dict())
+            self.db.insert("notify", {'id': self.attr.id})
         
         
     def username_to_id(self, username='', user_list=[]):
@@ -97,14 +99,16 @@ class User:
                 user_list[i] = f'@{user_list[i]}'
         return user_list
 
-    def userlist(self):
+    def userlist(self, full = 0 ):
+        if full:
+            return self.db.get_table_rows("usr", ['id', 'username'])
         return self.db.get_table_rows("usr", ['id', 'username'], {'blacklist': False})
 
 
-    def idlist(self):
-        l = self.db.get_table_column("usr", 'id', {'blacklist': False})
-        logging.info(l)
-        return l
+    def idlist(self, full = 0):
+        if full:
+            return self.db.get_table_column("usr", 'id')
+        return self.db.get_table_column("usr", 'id', {'blacklist': False})
 
 
     def is_admin(self, uid=0):
@@ -121,16 +125,25 @@ class User:
         return d
 
 
-    def show_stats(self, uid=0):
+    def show_stats(self, uid=0, order = SortType.CREATION):
+        id_param = 0
+        where = ''
         if uid:
             username = self.id_to_username(uid)
-            s = f'<b>🥷@{username}:</b>\n'
+            if order == SortType.SETTER:
+                s = f'<b>🧠@{username}:</b>\n'
+                where = f'creator = {uid}'
+            else:
+                id_param = uid
+                s = f'<b>⛏🥷@{username}:</b>\n'
+            logging.info([uid, order])
+            logging.info(where)
         else:
-            s = f'🧕🐒🥷🤦👷\n'\
-
-        s+= f'<i>Актуальных задач:</i> {self.db.count_active(uid)}\n'\
-            f'<i>Принято в работу:</i> {self.db.count_inproc(uid)}\n'\
-            f'<i>Всего выполнено:</i> {self.db.count_done(uid)}/{self.db.user_stats()}'\
+            s = f'🧕🐒🥷🤦👷\n'
+        s+= f'<i>Актуальных задач:</i> {self.db.count_active(uid, order)}\n'\
+            f'<i>Принято в работу:</i> {self.db.count_inproc(uid, order)}\n'\
+            f'<i>Всего выполнено:</i>'\
+            f' {self.db.count_done(uid, order)}/{self.db.user_stats(where, id_param)}'\
             f'<pre>                                                    &#x200D</pre>'
         return s
 

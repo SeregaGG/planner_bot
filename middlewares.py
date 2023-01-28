@@ -1,4 +1,3 @@
-"""Аутентификация — пропускаем сообщения только от одного Telegram аккаунта"""
 from aiogram import types
 from aiogram.dispatcher.handler import CancelHandler
 from aiogram.dispatcher.middlewares import BaseMiddleware
@@ -12,8 +11,14 @@ class AccessMiddleware(BaseMiddleware):
         self.access_ids = access_ids
         super().__init__()
 
+    def condition(self, m):
+        c = m.chat.id == m.from_user.id and self.access_ids and m.from_user.id not in self.access_ids
+        return c
+
     async def on_process_message(self, message: types.Message, _):
-        if message.from_user.id not in self.access_ids:
+        logging.info(self)
+        logging.info(self.access_ids)
+        if self.condition(message):
             logging.warning(f"{message.from_user.id} attempted to login")
             mes = message.from_user
             column_values = {

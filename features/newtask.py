@@ -1,4 +1,4 @@
-from init import bot, dp, Kb, Form
+from init import bot, dp, Kb, Form, alarm_dict
 from aiogram import types
 from constants.keys import cmdkey, inline
 from constants.enums import TIMEFORMAT
@@ -7,8 +7,10 @@ from datetime import datetime
 from classes.cquery import Cquery
 from classes.task import Task
 from classes.user import User
+from classes.alarm import Alarm
 from aiogram.dispatcher.filters import Text
 from aiogram.utils.exceptions import ChatNotFound
+from custom_filters.chat_type import IsPrivateChat
 
 
 Tqueue = TaskQueue()
@@ -128,15 +130,22 @@ async def new_task_buttons(callback: types.CallbackQuery):
         if query == 'save':
             task.save_to_db()
             await notify_creation(task)
+            for t_uid in task.ass_uids:
+                if t_uid not in alarm_dict.keys():
+                    alarm_dict[t_uid] = {}
+                alarm = Alarm(t_uid)
+                alarm_dict[t_uid][task.attr.task_id] = alarm.create_task_alarm(task.get_header())
             s = 'Задача сохранена'
         Tqueue.delTask(uid)
         await Form.default.set()
         await bot.delete_message(uid, mid)
-        await bot.send_message(uid, s, reply_markup=Kb.main(User(uid)))
+        await bot.send_message(uid, s, reply_markup=Kb.main)
 
 
-@dp.message_handler(Text(equals=cmdkey['create'], ignore_case=True), state=Form.default)
+@dp.message_handler(IsPrivateChat(),Text(equals=cmdkey['create']), state=Form.default)
 async def new_task(message: types.Message):
+    if message.from_user.id != message.chat.id:
+        return
     await bot.delete_message(message.from_user.id, message.message_id)
     global Tqueue
     task = Tqueue.newTask(message.from_user.id)

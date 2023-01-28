@@ -7,8 +7,8 @@ from middlewares import AccessMiddleware
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 
 
-
 class Form(StatesGroup):
+    initialize = State()
     default = State()
     add_task = State()
     admin = State()
@@ -20,12 +20,15 @@ class Form(StatesGroup):
     add_task_assignees = State()
     add_task_deadline = State()
     deluser = State()
+    notifi = State()
 
 
-API_TOKEN="1115198779:AAHPsbIAg3UBSb4A-ZsulryV1LQdi3Ck2Hc"
+API_TOKEN= os.environ['TELEGRAM_API_TOKEN']
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN, parse_mode='HTML')
 storage = MemoryStorage()
 dp = Dispatcher(bot=bot, storage=storage)
-dp.middleware.setup(AccessMiddleware(User().idlist()))
+middlewares = AccessMiddleware(User().idlist())
+dp.middleware.setup(middlewares)
 Kb = Keyboard(5)
+alarm_dict = {}

@@ -46,7 +46,7 @@ class Task:
         if not info:
             raise ValueError("Unexisting task id")
         self.fill_attr(info)
-        self.assignees=self.db.get_table_column('logger_table', 'tg_id', {'task_id': self.attr.task_id})
+        self.ass_uids=self.db.get_table_column('logger_table', 'tg_id', {'task_id': self.attr.task_id})
 
 
     def load_from_header(self, header):
@@ -95,14 +95,14 @@ class Task:
             return 1
         return 0
         
-
     
     def table_size(self, order: SortType, uid=0, username=''):
         if not uid and username:
             uid = self.db.username_to_id(username)
+
         if order == SortType.DEADLINE:
             join = 'join logger_table on tasks.task_id = logger_table.task_id'
-            return self.db.get_table_size("tasks", {'id': uid}, join)
+            return self.db.get_table_size("tasks", {'logger_table.tg_id': uid}, join)
         elif order == SortType.CREATION:
             return self.db.get_table_size("tasks")
         elif order == SortType.COMMON:
@@ -116,6 +116,14 @@ class Task:
 
     def task_headers(self, uid, limit, offset, sort):
         return self.db.sorted_headers(uid, limit, offset, sort)
+
+    def get_header(self):
+        return{
+            'deadline': self.attr.deadline,
+            'header': self.attr.header,
+            'task_id': self.attr.task_id,
+            'state': self.attr.state
+        }
 
 
     def calc_delta(self, delta):
@@ -166,8 +174,8 @@ class Task:
         assignees = ''
         if self.attr.deadline != datetime.fromtimestamp(0):
             deadline = self.attr.deadline.strftime(TIMEFORMAT)
-        if self.assignees:
-            assignees_list = User().id_to_username(uid_list=self.assignees)
+        if self.ass_uids:
+            assignees_list = User().id_to_username(uid_list=self.ass_uids)
             for i in range(0, len(assignees_list)):
                 assignees_list[i] = f'@{assignees_list[i]}'
             assignees = ', '.join(assignees_list)
