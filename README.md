@@ -1,18 +1,36 @@
-Task Helper Telegram Bot
+Planner Telegram Bot.
 
-Functionality:
--You can see a list of your tasks
--You can see a list of everyones' tasks
--You can tick out a task when it's done
--The bot sends you notifications according to set deadline of a task.
-
-Admin functions:
--Add new tasks for other people.
--[Optional] set notifications for other user's tasks. When the chosen user ticks out a task, you get a notification.
-
-Privacy:
-The Bot only works for a set list of telegram IDs, that can only be changed by an admin.
+Многопользовательский бот предназначенный для хранения, отображения и создания задач и рассчитан на небольшую команду из 10-20 человек.
 
 
 
-RUN BOT: "python server"
+ФУНКЦИИ БОТА:
+-Создание новых задач. Можно задать ответственных за выполнение и дедлайн. После создания задачи всем ответственным приходит уведомление.
+-Отображения задач (Фильтры: Мои, Все, Общие - не имкющие ответственных, Чужие - задачи другого пользователя):
+-Оповещение о дедлайнах. Задается в меню настроек. По умолчанию оповещения приходят за 7 дней, 2 дня и 1 день до дедлайна.
+-Удаление задач (только для админов)
+-Удаление участников (только для админов)
+-Назначение/удаление админов
+
+
+
+УСТАНОВКА И ЗАПУСК:
+1)Docker
+После гитпула скопировать свой telegram api токен в соотв. поле Dockerfile
+Далее:
+  docker build <~/path/to/repo/> -t bot
+  docker run -d bot
+  
+2)Через терминал:
+
+pip install -r </path/to/requirements.txt>
+python main.py
+
+
+ЧТО ДАЛЬШЕ?
+Бот привязывается к телеграм чату команды. Добавьте бот в телеграм чат и напишите в чате команду /start@my_bot_name. Далее бот предложит всем желающим зарегистрироваться и, после того, как админ чата подвтердит действие, бот создаст для команды рабочее пространство. Далее все взаимодействие с ботом переходит в личные сообщения.
+
+
+ИНСТРУМЕНЫ:
+Бот написан с помощью библиотеки aiogram v.2
+В качестве БД используется sqlite3
