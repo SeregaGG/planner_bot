@@ -85,7 +85,6 @@ class Db():
         values = tuple(column_values.values())
         placeholders =','.join('?'*len(column_values.keys()))
         s = f"INSERT INTO {table} ({columns}) VALUES ({placeholders})"
-        logging.info(s)
         self.cursor.execute(s, values)
         self.conn.commit()
         return self.cursor.lastrowid
@@ -215,7 +214,6 @@ class Db():
             s = f'{cmd}'
         self.cursor.execute(s)
         ans = self.cursor.fetchone()
-        logging.info(s)
         return ans[0]
 
 
@@ -257,6 +255,3 @@ class Db():
     def blacklist(self):
         return self.get_table_column('usr', 'tg_id', {'blacklist': 1})
 
-
-    def get_user_tasks(uid, motherchat):
-        self.tasks = self.db.get_table_column("logger_table", "task_id", {'tg_id': self.attr.id})

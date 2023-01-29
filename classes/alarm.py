@@ -54,7 +54,7 @@ class Alarm:
                 if delta > border and self.val_dict[days]:
                     coro_time[days] = loop.create_task(self.alarm(delta, border, task))
             return coro_time
-        
+
 
     def set_alarms(self):
         task_coro_dict = {}
@@ -69,7 +69,7 @@ class Alarm:
     def get_val_dict(self, fy):
         return {1: fy.day, 2: fy.day2, 7: fy.week}
 
-    
+
     def reset_alarms(self, alarm_dict, fy):
         loop = asyncio.get_event_loop()
         if self.uid not in alarm_dict.keys():
@@ -104,4 +104,4 @@ class Alarm:
                 alarm_dict[uid][task.attr.task_id].pop(val)
             alarm_dict[uid].pop(task.attr.task_id)
 
-                        
+

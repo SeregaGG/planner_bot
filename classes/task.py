@@ -90,12 +90,12 @@ class Task:
         if not self.db.get_table_column("tasks", "task_id", {'task_id': tid}):
             return 0
         if User().is_admin(uid) or uid == self.get_creator(tid):
-            self.db.delete('tasks', ['task_id', tid]) 
-            self.db.delete('logger_table', ['task_id', tid]) 
+            self.db.delete('tasks', ['task_id', tid])
+            self.db.delete('logger_table', ['task_id', tid])
             return 1
         return 0
-        
-    
+
+
     def table_size(self, order: SortType, uid=0, username=''):
         if not uid and username:
             uid = self.db.username_to_id(username)
@@ -140,7 +140,7 @@ class Task:
         else:
             return ''
 
-        
+
     def get_status(self):
         status_dict = {
             'done': '\u2705 Выполнено',
@@ -166,7 +166,7 @@ class Task:
                 return f"{status_dict['proc']} {self.calc_delta(delta)}"
             else:
                 return f"{status_dict['wait']} {self.calc_delta(delta)}"
-                
+
 
 
     def show(self):

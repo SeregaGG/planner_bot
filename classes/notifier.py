@@ -29,7 +29,6 @@ class Notifier:
 
     def load(self):
         value =  self.db.get_table_column('notify', 'value', {'id': self.uid})
-        logging.info(value)
         if not value:
             self.value = 0
             self.exists = False
@@ -40,12 +39,11 @@ class Notifier:
 
     def save(self):
         self.value = self.day + 2*self.day2 + 4*self.week
-        logging.info(self.value)
         if self.exists:
             self.db.update('notify', {'value': self.value}, {'id': self.uid})
         else:
             self.db.insert('notify', {'id': self.uid, 'value': self.value})
-        
+
 
     def process_value(self):
         value = self.value

@@ -94,7 +94,7 @@ class Keyboard:
             text = f"🌚@{a[i]['username']}" if a[i]['admin'] else f"@{a[i]['username']}"
             k1 = IK(text, callback_data=callback.generatecq())
             if i+1 < len(a):
-                callback = Cquery({'userid': a[i+1]['id'], 'is_admin': a[i+1]['admin']}, 
+                callback = Cquery({'userid': a[i+1]['id'], 'is_admin': a[i+1]['admin']},
                                                                                 inline['chadmin'])
                 text = f"🌚@{a[i+1]['username']}" if a[i+1]['admin'] else f"@{a[i+1]['username']}"
                 k2 = IK(text, callback_data=callback.generatecq())
@@ -130,8 +130,8 @@ class Keyboard:
             callback = Cquery({'userid': 0}, cmd)
             kb.row(IK('Сохранить и выйти', callback_data = callback.generatecq()))
         return kb
-        
-        
+
+
     def form_menu(self,tasks_size, cq):
         if cq['offset'] > 1:
             cq['dir'] = -1
@@ -169,10 +169,10 @@ class Keyboard:
         task.load_from_db()
         user.from_database()
         logic1 =  user.is_assignee(cq['tid']) and task.attr.state == TS.IN_PROCESS
-        logic2 = uid == task.attr.creator and task.attr.state == TS.AWAITING_SUBMIT 
+        logic2 = uid == task.attr.creator and task.attr.state == TS.AWAITING_SUBMIT
         logic3 = user.is_assignee(cq['tid']) and task.attr.state == TS.AWAITING_START
         logic4 = uid == task.attr.creator and task.attr.common == 1 and task.attr.state != TS.DONE
-        if logic1: 
+        if logic1:
             text = f"☑ Сдать задачу #{cq['tid']}"
             cq['state'] = TS.AWAITING_SUBMIT.value
             callback = Cquery(cq, inline['state'])

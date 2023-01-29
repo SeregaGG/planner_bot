@@ -14,8 +14,6 @@ class Registry:
 
 
     def add_member(self, user):
-        logging.info(self.register_list)
-        logging.info(self.username_list)
         if user not in self.register_list:
             self.username_list.append(f'🥷@{user.username}')
             self.register_list.append(user)
@@ -25,7 +23,7 @@ class Registry:
 
     def show(self):
         return '\n'.join(self.username_list)
-            
+
     async def delete(self):
         await bot.delete_message(self.message.chat.id, self.message.message_id)
 
@@ -39,7 +37,6 @@ class Registry:
 
 
     async def set_motherchat(self, cid):
-        logging.info(f'inserting {cid} into motherchat')
         self.db.insert("motherchat", {'motherid': cid})
 
 
@@ -50,15 +47,13 @@ class Registry:
             if user.attr.id in admin_list:
                 user.attr.admin = True
             user.attr.blacklist = 0
-            logging.info(user.as_dict())
             user.to_database()
-        logging.info(User().idlist())
         middlewares.access_ids = User().idlist()
         await Form.default.set()
         motherchat = await self.read_motherchat()
         if not motherchat:
             await self.set_motherchat(cid)
 
-        
+
     async def read_motherchat(self):
         return self.db.get_table_column('motherchat', 'motherid')

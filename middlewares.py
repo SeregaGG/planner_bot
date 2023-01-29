@@ -16,8 +16,6 @@ class AccessMiddleware(BaseMiddleware):
         return c
 
     async def on_process_message(self, message: types.Message, _):
-        logging.info(self)
-        logging.info(self.access_ids)
         if self.condition(message):
             logging.warning(f"{message.from_user.id} attempted to login")
             mes = message.from_user

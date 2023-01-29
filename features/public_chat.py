@@ -30,10 +30,9 @@ async def check_for_admin(cid, uid):
     for admin in admins:
         if uid ==  admin['user']['id']:
             return 1
-    logging.info('NOT SUCCESSFUL')
     return 0
 
-    
+
 async def report_success(cid, mid):
     botinfo = await bot.get_me()
     botname = botinfo['username']
@@ -61,9 +60,8 @@ async def register_user(callback: types.CallbackQuery):
         if success:
             s = invite_mes + reg.show()
             await bot.edit_message_text(s, cid, mid, reply_markup=Kb.register_kb())
-    else:
+    elif query == 'creat':
         if await check_for_admin(cid, callback.from_user.id):
-            logging.info('somehow im here')
             await reg.register(cid)
             await report_success(cid, mid)
             reg = None
@@ -71,10 +69,8 @@ async def register_user(callback: types.CallbackQuery):
 
 @dp.message_handler(IsPublicChat(), commands=['start'], state='*')
 async def send_welcome(message: types.Message):
-    logging.info('entering public welcome function')
     global reg
     motherchat = await Registry().read_motherchat()
-    logging.info(motherchat)
     if motherchat and motherchat[0] != message.chat.id:
         await bot.send_message(message.chat.id, 'Вы кто такие? Я вас не знаю!...')
         return

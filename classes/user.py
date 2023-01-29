@@ -41,7 +41,7 @@ class User:
     def user_tasks(self):
         self.tasks = self.db.get_table_column("logger_table", "task_id", {'tg_id': self.attr.id})
         return self.tasks
-    
+
 
     def from_database(self):
         if not self.attr.id:
@@ -62,15 +62,15 @@ class User:
         else:
             self.db.insert("usr", self.as_dict())
             self.db.insert("notify", {'id': self.attr.id})
-        
-        
+
+
     def username_to_id(self, username='', user_list=[]):
         if user_list:
             return self.db.username_to_id(user_list=user_list)
         elif username:
             return self.db.username_to_id(username=username)
         return None
-            
+
 
 
     def id_to_username(self, uid='', uid_list=[]):
@@ -79,7 +79,7 @@ class User:
         elif uid:
             return self.db.id_to_username(uid=uid)
         return None
-          
+
 
 
     def is_assignee(self, tid):
@@ -136,8 +136,6 @@ class User:
             else:
                 id_param = uid
                 s = f'<b>⛏🥷@{username}:</b>\n'
-            logging.info([uid, order])
-            logging.info(where)
         else:
             s = f'🧕🐒🥷🤦👷\n'
         s+= f'<i>Актуальных задач:</i> {self.db.count_active(uid, order)}\n'\

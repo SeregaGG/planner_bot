@@ -28,7 +28,6 @@ async def get_callback_text(callback):
 
 async def get_keyboard(from_user):
     user = User(from_user = from_user)
-    logging.info(user.as_dict())
     if user.is_admin():
         return Kb.admin_settings_kb(1)
     return Kb.admin_settings_kb(0)
@@ -66,7 +65,7 @@ async def change_admins(callback: types.CallbackQuery):
         await Form.admin.set()
         key = await get_keyboard(callback.from_user)
         await bot.edit_message_text(cmdkey['settings'], uid, mid, reply_markup=key)
-        
+
 
 @dp.callback_query_handler(Text(startswith=inline['del']), state=Form.deluser)
 async def deluser(callback: types.CallbackQuery):
@@ -108,10 +107,8 @@ async def notification_menu(callback: types.CallbackQuery):
         fy.save()
         a = Alarm(uid)
         a.reset_alarms(alarm_dict,fy)
-        logging.info(alarm_dict)
         NotiQueue.pop(uid)
         await Form.admin.set()
-        logging.info(callback)
         key = await get_keyboard(callback.from_user)
         await bot.edit_message_text(cmdkey['settings'], uid, mid, reply_markup=key)
 
