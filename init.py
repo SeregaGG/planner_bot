@@ -5,6 +5,7 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram import Bot, Dispatcher
 from middlewares import AccessMiddleware
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+import os
 
 
 class Form(StatesGroup):
@@ -23,7 +24,8 @@ class Form(StatesGroup):
     notifi = State()
 
 
-API_TOKEN= os.environ['TELEGRAM_API_TOKEN']
+#API_TOKEN= os.environ['TELEGRAM_API_TOKEN']
+API_TOKEN =
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN, parse_mode='HTML')
 storage = MemoryStorage()

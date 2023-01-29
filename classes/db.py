@@ -16,9 +16,10 @@ class Db():
             detect_types = sqlite3.PARSE_DECLTYPES|sqlite3.PARSE_COLNAMES
             self.conn = sqlite3.connect(path, detect_types=detect_types)
         except Exception as e:
-            raise sqlite3.OperationalError(e) 
+            raise sqlite3.OperationalError(e)
         self.cursor = self.conn.cursor()
         self.check_db_exists()
+        self.motherchat = 0
 
 
     def check_db_exists(self):
@@ -176,8 +177,8 @@ class Db():
             for i in range(0, len(user_list)):
                 response[user_list[i]] = ans[i][0]
             return response
-                
-            
+
+
     def id_to_username(self, uid: str = '', uid_list: list = []):
         s = 'select username from usr where '
         if not uid and not uid_list:
@@ -256,3 +257,6 @@ class Db():
     def blacklist(self):
         return self.get_table_column('usr', 'tg_id', {'blacklist': 1})
 
+
+    def get_user_tasks(uid, motherchat):
+        self.tasks = self.db.get_table_column("logger_table", "task_id", {'tg_id': self.attr.id})
