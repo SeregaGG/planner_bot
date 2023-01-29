@@ -2,7 +2,7 @@ FROM python:3.10
 
 WORKDIR /home
 
-ENV TELEGRAM_API_TOKEN="5809083044:AAFLur2PPymb7YNHn9OwRdNLYR4OCEhGQzY"
+ENV TELEGRAM_API_TOKEN=""
 
 ENV TZ=Europe/Moscow
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
