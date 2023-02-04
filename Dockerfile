@@ -2,6 +2,7 @@ FROM python:3.10
 
 WORKDIR /home
 
+
 ENV TELEGRAM_API_TOKEN=""
 
 ENV TZ=Europe/Moscow
@@ -13,6 +14,7 @@ RUN useradd -ms /bin/bash admin
 RUN chown -R admin:admin /home/
 RUN mkdir /home/db
 RUN chmod -R 777 /home/db
+RUN mv /home/helper.db /home/db/helper.db
 USER admin
 ENV PYTHONPATH /home/
 ENV PATH=$PATH:/home/

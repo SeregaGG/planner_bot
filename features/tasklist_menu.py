@@ -36,11 +36,11 @@ async def notify_users(task: Task, newstate):
         for ass in task.ass_uids:
             try:
                 await bot.send_message(ass, msg)
-            except ChatNotFound:
-                pass
+            except Exception as e:
+                logging.warning(e)
     else:
         await bot.send_message(task.attr.creator, msg)
-        
+
 
 @dp.callback_query_handler(Text(startswith=inline['state']), state=Form.newtask)
 @dp.callback_query_handler(Text(startswith=inline['state']), state=Form.admin)
@@ -53,15 +53,15 @@ async def accept_task(callback: types.CallbackQuery):
     task = Task(cq['tid'])
     task.load_from_db()
     newstate = TS(cq['state'])
-    await notify_users(task, newstate)
-    if newstate == TS.DONE:
-        alarm = Alarm(uid)
-        alarm.delete_alarms(task)
     task.attr.state = newstate
     task.set_task_state(newstate)
+    await notify_users(task, newstate)
     text = task.show()
     key = Kb.tasklist_inline(uid, cq['tid'], cq['offset'], cq['owneruid'], cq['order'])
     await bot.edit_message_text(text, uid, mid, reply_markup = key)
+    if newstate == TS.DONE:
+        alarm = Alarm(uid)
+        alarm.delete_alarms(task)
 
 
 @dp.callback_query_handler(Text(startswith=inline['shift']), state=Form.newtask)

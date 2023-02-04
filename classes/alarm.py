@@ -100,8 +100,11 @@ class Alarm:
             if uid not in alarm_dict.keys():
                 continue
             for val in self.val_dict:
-                alarm_dict[uid][task.attr.task_id][val].cancel()
-                alarm_dict[uid][task.attr.task_id].pop(val)
+                try:
+                    alarm_dict[uid][task.attr.task_id][val].cancel()
+                    alarm_dict[uid][task.attr.task_id].pop(val)
+                except Exception as e:
+                    logging.warning(e)
             alarm_dict[uid].pop(task.attr.task_id)
 
 

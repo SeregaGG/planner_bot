@@ -48,8 +48,8 @@ async def notify_creation(task):
     for ass in task.ass_uids:
         try:
             await bot.send_message(ass, s)
-        except ChatNotFound:
-            pass
+        except Exception as e:
+            logging.warning(e)
 
 
 @dp.message_handler(state = Form.add_task_header)
