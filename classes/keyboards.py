@@ -1,210 +1,204 @@
-from aiogram.types.reply_keyboard import ReplyKeyboardMarkup as RKM
-from aiogram.types.inline_keyboard import InlineKeyboardMarkup as IKM
-from aiogram.types.inline_keyboard import  InlineKeyboardButton as IK
-from constants.enums import SortType, TaskState as TS
+from aiogram.types.reply_keyboard import ReplyKeyboardMarkup
+from aiogram.types.inline_keyboard import InlineKeyboardMarkup
+from aiogram.types.inline_keyboard import InlineKeyboardButton
+from constants.enums import SortType, TaskState
 from classes.task import Task
 from classes.user import User
 from constants.keys import cmdkey, inline
-import logging
 from classes.cquery import Cquery
 
 
 class Keyboard:
     def __init__(self, limit=10):
         self.limit = limit
-        self.main = self.main_kb()
-        self.new_task_inline = self.new_task_inline()
-        self.my_tasks =  self.my_tasks_inline()
+        self.main = self.create_main_keyboard()
+        self.new_task_inline = self.create_task_inline()
+        self.my_tasks = self.create_my_tasks_keyboard()
 
-
-    def newtask(self):
+    def new_task(self):
         return self.new_task_inline
 
+    def create_register_keyboard(self):
+        register_keyboard = InlineKeyboardMarkup()
+        register_keyboard.row(InlineKeyboardButton('Добавить меня', callback_data='register_submit'))
+        register_keyboard.row(InlineKeyboardButton('Создать рабочее пр-во\n(админ)', callback_data='register_creat'))
+        return register_keyboard
 
-    def register_kb(self):
-        k = IKM()
-        k.row(IK('Добавить меня', callback_data = 'register_submit'))
-        k.row(IK('Создать рабочее пр-во\n(админ)', callback_data = 'register_creat'))
-        return k
+    def create_main_keyboard(self):
+        # Reply keyboard for admin
+        main_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+        main_keyboard.row(cmdkey['my'], cmdkey['all'], cmdkey['common'])
+        main_keyboard.row(cmdkey['others'], cmdkey['create'], cmdkey['settings'])
+        return main_keyboard
 
-
-    def main_kb(self):
-        #Reply keyboard for admin
-        Mk = RKM(resize_keyboard=True)
-        Mk.row(cmdkey['my'], cmdkey['all'], cmdkey['common'])
-        Mk.row(cmdkey['others'], cmdkey['create'], cmdkey['settings'])
-        return Mk
-
-    def admin_settings_kb(self, is_admin = 0):
-        Ak = IKM()
-        noti = IK('🔈Уведомления', callback_data='settings_notifications')
-        delete = IK('🚫Удалить задачу', callback_data='settings_delete')
-        admin = IK('🌚Админы', callback_data='settings_admins')
-        back = IK('↩Назад', callback_data='settings_back')
-        deluser = IK('👮Удалить участника', callback_data = 'settings_deluser')
+    def create_admin_settings_kb(self, is_admin: bool = False):
+        admin_keyboard = InlineKeyboardMarkup()
+        notification_button = InlineKeyboardButton('🔈Уведомления', callback_data='settings_notifications')
+        delete_taks_button = InlineKeyboardButton('🚫Удалить задачу', callback_data='settings_delete')
+        admin_button = InlineKeyboardButton('🌚Админы', callback_data='settings_admins')
+        back_button = InlineKeyboardButton('↩Назад', callback_data='settings_back')
+        delete_user_button = InlineKeyboardButton('👮Удалить участника', callback_data='settings_deluser')
         if is_admin:
-            Ak.row(noti, admin)
-            Ak.row(deluser, delete)
-            Ak.row(back)
+            admin_keyboard.row(notification_button, admin_button)
+            admin_keyboard.row(delete_user_button, delete_taks_button)
+            admin_keyboard.row(back_button)
         else:
-            Ak.row(noti, back)
-        return Ak
+            admin_keyboard.row(notification_button, back_button)
+        return admin_keyboard
 
+    def create_notification_menu(self, fy):
+        notification_menu = InlineKeyboardMarkup()
+        emoji = '🌚'
+        week_period = emoji + 'За неделю' if fy.week else 'За неделю'
+        two_days_period = emoji + 'За 2 дня' if fy.day2 else 'За 2 дня'
+        one_day_period = emoji + 'За день' if fy.day else 'За день'
+        notification_menu.row(InlineKeyboardButton(week_period, callback_data='notifi_week'))
+        notification_menu.row(InlineKeyboardButton(two_days_period, callback_data='notifi_2'))
+        notification_menu.row(InlineKeyboardButton(one_day_period, callback_data='notifi_1'))
+        notification_menu.row(InlineKeyboardButton('Сохранить и выйти', callback_data='notifi_back'))
+        return notification_menu
 
-
-
-    def notification_menu(self, fy):
-        Kb = IKM()
-        emo = '🌚'
-        week = emo + 'За неделю' if fy.week else 'За неделю'
-        day2 = emo+'За 2 дня' if fy.day2 else 'За 2 дня'
-        day = emo+'За день' if fy.day else 'За день'
-        Kb.row(IK(week, callback_data='notifi_week' ))
-        Kb.row(IK(day2, callback_data='notifi_2'))
-        Kb.row(IK(day, callback_data = 'notifi_1'))
-        Kb.row(IK('Сохранить и выйти', callback_data = 'notifi_back'))
-        return Kb
-
-
-    def new_task_inline(self):
+    def create_task_inline(self):
         '''Creating Inline keyboard for adding task command'''
-        AddTasksKb = IKM(resize_keyboard=True)
-        btn1 = IK('Название', callback_data=f'{inline["addtask"]}_header')
-        btn2 = IK('Описание', callback_data=f'{inline["addtask"]}_body')
-        btn3 = IK('Ответственные', callback_data=f'{inline["addtask"]}_assignees')
-        btn4 = IK('Дедлайн', callback_data=f'{inline["addtask"]}_deadline')
-        btn5 = IK('Назад', callback_data=f'{inline["addtask"]}_back')
-        btn6 = IK('Сохранить', callback_data=f'{inline["addtask"]}_save')
-        AddTasksKb.row(btn1, btn2)
-        AddTasksKb.row(btn3, btn4)
-        AddTasksKb.row(btn5, btn6)
-        return AddTasksKb
+        add_task_keyboard = InlineKeyboardMarkup(resize_keyboard=True)
 
+        task_title = InlineKeyboardButton('Название', callback_data=f'{inline["addtask"]}_header')
+        task_description = InlineKeyboardButton('Описание', callback_data=f'{inline["addtask"]}_body')
+        task_assignees = InlineKeyboardButton('Ответственные', callback_data=f'{inline["addtask"]}_assignees')
+        task_deadline = InlineKeyboardButton('Дедлайн', callback_data=f'{inline["addtask"]}_deadline')
+        back_button = InlineKeyboardButton('Назад', callback_data=f'{inline["addtask"]}_back')
+        save_button = InlineKeyboardButton('Сохранить', callback_data=f'{inline["addtask"]}_save')
 
-    def go_back_kb(self, callback):
-        MBack = IKM(resize_keyboard=True)
-        MBack.row(IK(cmdkey['back'], callback_data = callback))
-        return MBack
+        add_task_keyboard.row(task_title, task_description)
+        add_task_keyboard.row(task_assignees, task_deadline)
+        add_task_keyboard.row(back_button, save_button)
 
-    def adminlist(self):
-        kb = IKM()
-        a = User().adminlist()
-        for i in range(0, len(a), 2):
-            callback = Cquery({'userid': a[i]['id'], 'is_admin': a[i]['admin']}, inline['chadmin'])
-            text = f"🌚@{a[i]['username']}" if a[i]['admin'] else f"@{a[i]['username']}"
-            k1 = IK(text, callback_data=callback.generatecq())
-            if i+1 < len(a):
-                callback = Cquery({'userid': a[i+1]['id'], 'is_admin': a[i+1]['admin']},
-                                                                                inline['chadmin'])
-                text = f"🌚@{a[i+1]['username']}" if a[i+1]['admin'] else f"@{a[i+1]['username']}"
-                k2 = IK(text, callback_data=callback.generatecq())
-            else:
-                k2 = IK(' ', callback_data=f'empty')
-            kb.row(k1, k2)
+        return add_task_keyboard
+
+    def create_back_keyboard(self, callback):
+        back_keyboard = InlineKeyboardMarkup(resize_keyboard=True)
+        back_keyboard.row(InlineKeyboardButton(cmdkey['back'], callback_data=callback))
+        return back_keyboard
+
+    def create_admin_list_keyboard(self):
+        admins_keyboard = InlineKeyboardMarkup()
+        admins = User().adminlist()
+
+        for admin in admins:
+            callback = Cquery({'userid': admin['id'], 'is_admin': admin['admin']}, inline['chadmin'])
+            admin_info = f"🌚@{admin['username']}" if admin['admin'] else f"@{admin['username']}"
+            admin_button = InlineKeyboardButton(admin_info, callback_data=callback.generatecq())
+            admins_keyboard.row(admin_button)
+
         callback = Cquery({'userid': 0}, inline['chadmin'])
-        kb.row(IK(cmdkey['back'], callback_data=callback.generatecq()))
-        return kb
+        admins_keyboard.row(InlineKeyboardButton(cmdkey['back'], callback_data=callback.generatecq()))
+        return admins_keyboard
 
+    def create_my_tasks_keyboard(self):
+        deadline_query = Cquery({'order': SortType.DEADLINE.value}, inline['mytask'])
+        deadline_setter = Cquery({'order': SortType.SETTER.value}, inline['mytask'])
 
-    def my_tasks_inline(self):
-        cq1 = Cquery({'order': SortType.DEADLINE.value}, inline['mytask'])
-        cq2 = Cquery({'order': SortType.SETTER.value}, inline['mytask'])
-        a = IK('⛏Я - исполнитель', callback_data=cq1.generatecq())
-        b = IK('🧠Я - постановщик', callback_data=cq2.generatecq())
-        return IKM().row(a, b)
+        task_assignee = InlineKeyboardButton('⛏Я - исполнитель', callback_data=deadline_query.generatecq())
+        task_creator = InlineKeyboardButton('🧠Я - постановщик', callback_data=deadline_setter.generatecq())
 
+        my_tasks = InlineKeyboardMarkup().row(task_assignee, task_creator)
 
-    def assignees_inline(self, cmd='', save_option = 0):
-        kb = IKM()
+        return my_tasks
+
+    def create_assignees_keyboard(self, cmd='', save_option: bool = False):
+        assignees_keyboard = InlineKeyboardMarkup()
         users = User().userlist()
-        for i in range(0, len(users), 2):
-            callback = Cquery({'userid': users[i]['id']}, cmd)
-            k1 = IK(f"@{users[i]['username']}", callback_data=callback.generatecq())
-            if i+1 < len(users):
-                callback = Cquery({'userid': users[i+1]['id']}, cmd)
-                k2 = IK(f"@{users[i+1]['username']}", callback_data=callback.generatecq())
-            else:
-                k2 = IK(' ', callback_data=f'empty')
-            kb.row(k1, k2)
+
+        for user in users:
+            callback = Cquery({'userid': user['id']}, cmd)
+            user_button = InlineKeyboardButton(f"@{user['username']}", callback_data=callback.generatecq())
+            assignees_keyboard.row(user_button)
+
         if save_option:
             callback = Cquery({'userid': 0}, cmd)
-            kb.row(IK('Сохранить и выйти', callback_data = callback.generatecq()))
-        return kb
+            assignees_keyboard.row(InlineKeyboardButton('Сохранить и выйти', callback_data=callback.generatecq()))
 
+        return assignees_keyboard
 
-    def form_menu(self,tasks_size, cq):
+    def get_form_menu_buttons(self, tasks_size, cq):
         if cq['offset'] > 1:
             cq['dir'] = -1
             callback = Cquery(cq, inline['shift'])
-            back = IK('<', callback_data=callback.generatecq())
+            back_button = InlineKeyboardButton('<', callback_data=callback.generatecq())
         else:
-            back = IK('_', callback_data='empty')
-        if tasks_size-(cq['offset']*self.limit) > 0:
+            back_button = InlineKeyboardButton('_', callback_data='empty')
+        if tasks_size - (cq['offset'] * self.limit) > 0:
             cq['dir'] = 1
             callback = Cquery(cq, inline['shift'])
-            forward = IK('>', callback_data=callback.generatecq())
+            forward_button = InlineKeyboardButton('>', callback_data=callback.generatecq())
         else:
-            forward = IK('_', callback_data='empty')
-        pogr = tasks_size % self.limit !=0
-        count = IK(f"{cq['offset']}/{tasks_size//self.limit + pogr}", callback_data='empty')
-        return back, forward, count
+            forward_button = InlineKeyboardButton('_', callback_data='empty')
 
+        limit = tasks_size // self.limit
 
-    def form_tasks(self, TasksKb, tsize, cq):
-        tasks = Task().task_headers(cq['owneruid'], self.limit, cq['offset']-1, SortType(cq['order']))
-        for header in tasks:
-            T = Task()
-            T.load_from_header(header)
-            status = T.get_status()
-            s = f"{status[0]}[#{T.attr.task_id}] {T.attr.header}"
-            cq['btntid'] = T.attr.task_id
+        is_over_limit = limit != 0
+
+        task_count_button = InlineKeyboardButton(f"{cq['offset']}/{limit + is_over_limit}", callback_data='empty')
+        return back_button, forward_button, task_count_button
+
+    def create_form_tasks_keyboard(self, tasks_keyboard, cq):
+        all_tasks = Task().task_headers(cq['owneruid'], self.limit, cq['offset'] - 1, SortType(cq['order']))
+
+        for header in all_tasks:
+            task = Task()
+            task.load_from_header(header)
+
+            status = task.get_status()
+            formatted_status = f"{status[0]}[#{task.attr.task_id}] {task.attr.header}"
+
+            cq['btntid'] = task.attr.task_id
             callback = Cquery(cq, inline['show'])
-            TasksKb.row(IK(s, callback_data = callback.generatecq()))
-        return TasksKb
 
+            tasks_keyboard.row(InlineKeyboardButton(formatted_status, callback_data=callback.generatecq()))
 
-    def submit_button(self, uid, cq, TasksKb):
+        return tasks_keyboard
+
+    def create_submit_button(self, uid, cq, tasks_keyboard):
         user = User(uid)
         task = Task(cq['tid'])
         task.load_from_db()
         user.from_database()
-        logic1 =  user.is_assignee(cq['tid']) and task.attr.state == TS.IN_PROCESS
-        logic2 = uid == task.attr.creator and task.attr.state == TS.AWAITING_SUBMIT
-        logic3 = user.is_assignee(cq['tid']) and task.attr.state == TS.AWAITING_START
-        logic4 = uid == task.attr.creator and task.attr.common == 1 and task.attr.state != TS.DONE
-        if logic1:
-            text = f"☑ Сдать задачу #{cq['tid']}"
-            cq['state'] = TS.AWAITING_SUBMIT.value
+        is_in_process = user.is_assignee(cq['tid']) and task.attr.state == TaskState.IN_PROCESS
+        is_awaiting_submit = uid == task.attr.creator and task.attr.state == TaskState.AWAITING_SUBMIT
+        is_awaiting_start = user.is_assignee(cq['tid']) and task.attr.state == TaskState.AWAITING_START
+        is_done = uid == task.attr.creator and task.attr.common == 1 and task.attr.state != TaskState.DONE
+        if is_in_process:
+            done_message = f"☑ Сдать задачу #{cq['tid']}"
+            cq['state'] = TaskState.AWAITING_SUBMIT.value
             callback = Cquery(cq, inline['state'])
-            TasksKb.row(IK(text, callback_data=callback.generatecq()))
-        elif logic2 or logic4:
-            text = f'✅Принять #{cq["tid"]}'
-            cq['state'] = TS.DONE.value
+            tasks_keyboard.row(InlineKeyboardButton(done_message, callback_data=callback.generatecq()))
+        elif is_awaiting_submit or is_done:
+            submit_massage = f'✅Принять #{cq["tid"]}'
+            cq['state'] = TaskState.DONE.value
             callback = Cquery(cq, inline['state'])
             gen1 = callback.generatecq()
-            if logic2:
-                text2 = f'❌Вернуть #{cq["tid"]}'
-                cq['state'] = TS.IN_PROCESS.value
+            if is_awaiting_submit:
+                reject_message = f'❌Вернуть #{cq["tid"]}'
+                cq['state'] = TaskState.IN_PROCESS.value
                 callback = Cquery(cq, inline['state'])
                 gen2 = callback.generatecq()
-                TasksKb.row(IK(text, callback_data=gen1),IK(text2, callback_data=gen2))
+                tasks_keyboard.row(InlineKeyboardButton(submit_massage, callback_data=gen1),
+                            InlineKeyboardButton(reject_message, callback_data=gen2))
             else:
-                TasksKb.row(IK(text, callback_data=gen1))
-        elif logic3:
-            text = f'🏋Приступить к задаче'
-            cq['state'] = TS.IN_PROCESS.value
+                tasks_keyboard.row(InlineKeyboardButton(submit_massage, callback_data=gen1))
+        elif is_awaiting_start:
+            take_message = f'🏋Приступить к задаче'
+            cq['state'] = TaskState.IN_PROCESS.value
             callback = Cquery(cq, inline['state'])
-            TasksKb.row(IK(text, callback_data=callback.generatecq()))
-
+            tasks_keyboard.row(InlineKeyboardButton(take_message, callback_data=callback.generatecq()))
 
     def tasklist_inline(self, uid, tid=0, offset=1, owner_uid=0, order=SortType.CREATION.value):
         cq = {'offset': offset, 'owneruid': owner_uid, 'tid': tid, 'order': order}
-        TasksKb = IKM()
+        tasks_keyboard = InlineKeyboardMarkup()
         tasks_size = Task().table_size(SortType(order), uid=owner_uid)
-        TasksKb = self.form_tasks(TasksKb, tasks_size, cq)
-        back, forward, count = self.form_menu(tasks_size, cq)
-        TasksKb.row(back, count, forward)
+        tasks_keyboard = self.create_form_tasks_keyboard(tasks_keyboard, cq)
+        back, forward, count = self.get_form_menu_buttons(tasks_size, cq)
+        tasks_keyboard.row(back, count, forward)
         if tid:
-            self.submit_button(uid, cq, TasksKb)
-        return TasksKb
-
+            self.create_submit_button(uid, cq, tasks_keyboard)
+        return tasks_keyboard
